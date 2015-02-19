@@ -1,16 +1,16 @@
 
-ZMQ_VERSION=2.2.0
+ZMQ_VERSION=4.0.5
 PROTOBUF_VERSION=2.3.0
 
 all: boost protobuf zmq  uuid
 boost: $(PWD)/third_party/install/lib/libboost_thread.a
 
-$(PWD)/third_party/boost_1_50_0/bootstrap.sh:
-	tar -zxf boost_1_50_0.tar.gz
-	cd boost_1_50_0; ./bootstrap.sh --prefix=$(PWD)/third_party/install
+$(PWD)/third_party/boost_1_57_0/bootstrap.sh:
+	tar -zxf boost_1_57_0.tar.gz
+	cd boost_1_57_0; ./bootstrap.sh --prefix=$(PWD)/third_party/install
 
-$(PWD)/third_party/install/lib/libboost_thread.a: $(PWD)/third_party/boost_1_50_0/bootstrap.sh
-	cd boost_1_50_0; ./b2 -j8 --without-python --without-mpi link=static,shared runtime-link=shared define=BOOST_LOG_DYN_LINK install
+$(PWD)/third_party/install/lib/libboost_thread.a: $(PWD)/third_party/boost_1_57_0/bootstrap.sh
+	cd boost_1_57_0; ./b2 -j8 --without-python --without-mpi link=static,shared runtime-link=shared define=BOOST_LOG_DYN_LINK install
 
 protobuf: $(PWD)/third_party/install/lib/libprotobuf.a
 
@@ -34,7 +34,7 @@ $(PWD)/third_party/install/lib/libuuid.a:
 
 clean: 
 	rm -rf $(PWD)/third_party/install/
-	rm -rf $(PWD)/third_party/boost_1_50_0/
+	rm -rf $(PWD)/third_party/boost_1_57_0/
 	rm -rf $(PWD)/third_party/protobuf-2.5.0/
 	rm -rf $(PWD)/third_party/zeromq-4.0.4
 	rm -rf $(PWD)/third_party/libxml2-2.9.1

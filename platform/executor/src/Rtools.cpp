@@ -17,6 +17,8 @@
  ********************************************************************/
 
 #include <malloc.h>
+#include <Rinternals.h>
+#include <Rcpp.h>
 
 #include <string>
 #include <utility>  // make_pair
@@ -25,9 +27,6 @@
 #include <inttypes.h>
 
 #include <boost/interprocess/detail/move.hpp>  // doesn't compile without this for some reason.........
-
-#include <Rinternals.h>
-#include <Rcpp.h>
 
 using namespace std;
 

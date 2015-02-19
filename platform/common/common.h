@@ -22,6 +22,7 @@
 
 #ifndef _PRESTO_COMMON_
 #define _PRESTO_COMMON_
+#define BOOST_54
 #include <stdio.h>
 #include <inttypes.h>
 
@@ -46,7 +47,6 @@
 #include <zmq.hpp>
 
 #include <boost/algorithm/string/erase.hpp>
-
 #include "shared.pb.h"
 #include "PrestoException.h"
 

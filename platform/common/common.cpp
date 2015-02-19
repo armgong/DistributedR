@@ -17,13 +17,12 @@
  ********************************************************************/
 
 #include <common.h>
-
+#include <boost/thread/mutex.hpp>
 using namespace std;
 using namespace zmq;
 extern "C" int bind(int, const sockaddr*, socklen_t);
 
 namespace presto {
-
 static boost::mutex port_bind_mutex;
 static volatile int cur_port_assigned = -1;
 

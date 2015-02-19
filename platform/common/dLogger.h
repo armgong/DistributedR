@@ -19,15 +19,30 @@
 #ifndef _DLOGGER_H_
 #define _DLOGGER_H_
 
+#define BOOST_54
+#ifdef BOOST_54
+
+#include <boost/log/common.hpp>
+#include <boost/log/expressions.hpp>
+#include <boost/log/utility/setup/file.hpp>
+#include <boost/log/utility/setup/console.hpp>
+#include <boost/log/utility/setup/common_attributes.hpp>
+#include <boost/log/attributes/timer.hpp>
+#include <boost/log/attributes/named_scope.hpp>
+#include <boost/log/support/date_time.hpp>
+
+#else
+
 #include <boost/log/common.hpp>
 #include <boost/log/formatters.hpp>
 #include <boost/log/filters.hpp>
-
 #include <boost/log/utility/init/to_file.hpp>
 #include <boost/log/utility/init/to_console.hpp>
 #include <boost/log/utility/init/common_attributes.hpp>
-
 #include <boost/log/attributes/timer.hpp>
+
+#endif
+
 #include <boost/log/sources/logger.hpp>
 
 using namespace std;
@@ -35,16 +50,16 @@ using boost::shared_ptr;
 //using namespace boost;
 
 namespace logging = boost::log;
-namespace src = boost::log::sources;
-#ifdef BOOST_54
-namespace expr = boost::log::expressions;
-#endif
-namespace keyword = boost::log::keywords;
 namespace sinks = boost::log::sinks;
 namespace attrs = boost::log::attributes;
+namespace src = boost::log::sources;
+#ifdef BOOST_54 
+namespace expr = boost::log::expressions;
+namespace keyword = boost::log::keywords;
+#else
 namespace fmt = boost::log::formatters;
 namespace flt = boost::log::filters;
-
+#endif
 namespace presto {
 
 typedef enum {
@@ -77,18 +92,26 @@ inline std::basic_ostream< CharT, TraitsT >& operator<< (
 }
 
 static void InitializeFileLogger(const char* logname){
+		#ifdef BOOST_54
+		logging::add_file_log  
+		#else
     logging::init_log_to_file
+		#endif
     (
+        #ifdef BOOST_54
         keyword::file_name = logname,
         keyword::auto_flush=true,
         keyword::open_mode = (std::ios::out | std::ios::trunc),
-        #ifdef BOOST_54
-          keyword::format = expr::stream
+
+				 keyword::format = expr::stream
               << expr::attr< boost::posix_time::ptime >("TimeStamp")
               << " [" << severity
               << "] " << expr::message
         #else
-          keyword::format = fmt::format("%1% [%2%] %3%")
+            keyword::file_name = logname,
+        keyword::auto_flush=true,
+        keyword::open_mode = (std::ios::out | std::ios::trunc),
+				keyword::format = fmt::format("%1% [%2%] %3%")
               % fmt::date_time("TimeStamp")
               % fmt::attr< severity_level >("Severity")
               % fmt::message()
@@ -99,10 +122,14 @@ static void InitializeFileLogger(const char* logname){
 }
 
 static void InitializeConsoleLogger(){
-    logging::init_log_to_console
+    #ifdef BOOST_54
+		logging::add_console_log
+		#else
+		logging::init_log_to_console
+		#endif
     (
         std::cout,
-	std::cerr,    
+				std::cerr,    
         keyword::auto_flush=true,
         #ifdef BOOST_54
           keyword::format = expr::stream
