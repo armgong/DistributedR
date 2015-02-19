@@ -11,6 +11,7 @@
 /third_party/zeromq-2.2.0/
 /third_party/zeromq-4.0.5/
 /third_party/libuuid-1.0.3/
+/third_party/*.tar.gz
 .Rdata
 .Rhistory
 *.o
