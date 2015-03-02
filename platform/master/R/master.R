@@ -179,7 +179,7 @@ start_workers <- function(cluster_conf,
   return(TRUE)
 }
 
-distributedR_start <- function(inst=0, mem=0,
+drstart<-distributedR_start <- function(inst=0, mem=0,
                          cluster_conf="",
                          log=2) {
   
@@ -275,7 +275,7 @@ conf2df <- function(cluster_conf) {
   }}, error = handle_presto_exception)
 }
 
-distributedR_shutdown <- function(pm=NA, quiet=FALSE) {
+drshut<-distributedR_shutdown <- function(pm=NA, quiet=FALSE) {
   ret<-TRUE
   if(class(pm) != "Rcpp_PrestoMaster"){
     tryCatch(pm <- get_pm_object(), error=function(e){})
@@ -328,7 +328,7 @@ clear_presto_r_objs <- function(darray_only=TRUE) {
   TRUE
 }
 
-distributedR_status <- function(help=FALSE){
+drstat<-distributedR_status <- function(help=FALSE){
   stat_df <- NA
   tryCatch({
     pm <- get_pm_object()
@@ -356,7 +356,7 @@ distributedR_status <- function(help=FALSE){
   },error = handle_presto_exception)
 }
 
-distributedR_master_info <- function() {
+drmaster<-distributedR_master_info <- function() {
   tryCatch({
     pm <- get_pm_object()
     if (!is.null(pm)) {

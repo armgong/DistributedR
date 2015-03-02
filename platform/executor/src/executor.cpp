@@ -630,7 +630,7 @@ int main(int argc, char *argv[]) {
   InitializeConsoleLogger();
   LOG_INFO("Executor started.");
 	//enable debug Yu Gong
-  LoggerFilter(3);//atoi(argv[4]));
+  LoggerFilter(atoi(argv[4]));
   
   // name of shared memory segment
   // to synchorize/share memory between worker and executor
