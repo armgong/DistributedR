@@ -15,7 +15,8 @@
 #not, write to the Free Software Foundation, Inc., 59 Temple Place,
 #Suite 330, Boston, MA 02111-1307 USA
 #####################################################################
-
+# CXX Compiler
+CXX=g++
 # Makefile variables 
 BOOST_DIR = $(PWD)/third_party/install/include
 BOOST_LIB_DIR = $(PWD)/third_party/install/lib
@@ -93,7 +94,7 @@ TUTORIAL_FILE = Tutorial
 TUTORIAL_DATA_FILE = Data
 FAQ_FILE = FAQ
 
-INCLUDE_FLAGS = -DBOOST_LOG_DYN_LINK -DCSTACK_DEFNS -DHAVE_NETINET_IN_H -DHAVE_INTTYPES_H -I ${BOOST_DIR} -I ${GEN_DIR} -I ${BOOST_THREADPOOL_DIR} -I ${ATOMICIO_DIR} -I ${PRESTO_COMMON_DIR} ${R_INCLUDE_FLAGS} ${RCPP_INCLUDE_FLAGS} ${RINSIDE_INCLUDE_FLAGS}
+INCLUDE_FLAGS = -DBOOST_LOG_DYN_LINK -DHAVE_NETINET_IN_H -DHAVE_INTTYPES_H -I ${BOOST_DIR} -I ${GEN_DIR} -I ${BOOST_THREADPOOL_DIR} -I ${ATOMICIO_DIR} -I ${PRESTO_COMMON_DIR} ${R_INCLUDE_FLAGS} ${RCPP_INCLUDE_FLAGS} ${RINSIDE_INCLUDE_FLAGS}
 LINK_FLAGS = -lm -rdynamic -L ${LIB_DIR} -Wl,-rpath,${LIB_DIR} ${R_LD_FLAGS} -lpthread -L$(BOOST_LIB_DIR) -Wl,-rpath,${BOOST_LIB_DIR} -lboost_thread -lboost_system -lboost_log -lboost_log_setup -lboost_chrono -lboost_filesystem -lboost_date_time -L ${ATOMICIO_DIR} -Wl,-rpath,${ATOMICIO_DIR} -latomicio ${RCPP_LD_FLAGS} ${RINSIDE_LD_FLAGS} -lrt -lsodium#-laio 
 
 DEBUG = -g
@@ -111,7 +112,8 @@ DEBUG = -g
 #UNIQUE_EXECUTOR_LOG_NAMES = -DUNIQUE_EXECUTOR_LOG_NAMES
 #EXECUTOR_TRYCATCH = -DEXECUTOR_TRYCATCH
 #MULTITHREADED_SCHEDULER = -DMULTITHREADED_SCHEDULER  # locking in multi-threaded scheduler is not 100% tested; use single thread until it affects performance
-GCC_FLAGS = -std=c++11 ${DEBUG} -O2 -fopenmp -finline-limit=10000 -DNDEBUG ${INCLUDE_FLAGS} ${LINK_FLAGS} -Wno-deprecated-declarations -DSTRICT_R_HEADERS ${USE_MMAP_AS_SHMEM} ${SCHEDULER_LOGGING} ${OOC_SCHEDULER} ${USE_DYNAMIC_PARTITION} ${PROFILING} ${FAST_UPDATE} ${INCREASE_R_HEAP} ${UNIQUE_EXECUTOR_LOG_NAMES} ${EXECUTOR_TRYCATCH}
+GCC_FLAGS = -std=c++11 ${DEBUG} -O2 -fopenmp -DNDEBUG ${INCLUDE_FLAGS} -Wno-deprecated-declarations -DSTRICT_R_HEADERS ${USE_MMAP_AS_SHMEM} ${SCHEDULER_LOGGING} ${OOC_SCHEDULER} ${USE_DYNAMIC_PARTITION} ${PROFILING} ${FAST_UPDATE} ${INCREASE_R_HEAP} ${UNIQUE_EXECUTOR_LOG_NAMES} ${EXECUTOR_TRYCATCH}
+GCC_FLAGS_LINK=${GCC_FLAGS} ${LINK_FLAGS}
 CXXFLAGS=${GCC_FLAGS} -fPIC
 
 ATOMICIO_LIB=${ATOMICIO_DIR}/libatomicio.so

@@ -28,24 +28,24 @@ ${GEN_DIR}/%.pb.cc: platform/messaging/%.proto
 # Protocol Buffers library
 ${PRESTO_PROTO}: ${ATOMICIO_LIB} ${GEN_PROTO_SRC}
 	mkdir -p ${LIB_DIR}
-	g++ ${GCC_FLAGS} -fPIC -shared -o $@ ${GEN_PROTO_SRC} ${PROTOBUF_STATIC_LIB}
+	${CXX} ${GCC_FLAGS_LINK} -fPIC -shared -o $@ ${GEN_PROTO_SRC} ${PROTOBUF_STATIC_LIB}
 
 # --- COMMON ---
 
 # Common objects
 ${PRESTO_COMMON_DIR}/%.o: platform/common/%.cpp ${PRESTO_COMMON_HEADERS}
-	g++ $< -c ${GCC_FLAGS} -fPIC -o $@
+	${CXX} $< -c ${GCC_FLAGS} -fPIC -o $@
 
 # Common library
 ${PRESTO_COMMON}: ${PRESTO_PROTO} ${PRESTO_COMMON_OBJS}
 	mkdir -p ${LIB_DIR}
-	g++ ${PRESTO_COMMON_OBJS} ${GCC_FLAGS} -fPIC -shared -o $@ ${PROTOBUF_STATIC_LIB} -lR-proto ${ZMQ_STATIC_LIB}
+	${CXX} ${PRESTO_COMMON_OBJS} ${GCC_FLAGS_LINK} -fPIC -shared -o $@ ${PROTOBUF_STATIC_LIB} -lR-proto ${ZMQ_STATIC_LIB}
 
 # --- MASTER ---
 
 # Master objects
 ${PRESTO_MASTER_DIR}/%.o: ${PRESTO_MASTER_DIR}/%.cpp ${PRESTO_MASTER_HEADERS} ${PRESTO_COMMON_HEADERS}
-	g++ $< -c ${GCC_FLAGS} -fPIC -o $@
+	${CXX} $< -c ${GCC_FLAGS} -fPIC -o $@
 
 # Master R library
 ${MASTER_RLIB}: ${PRESTO_PROTO} ${PRESTO_COMMON} ${PRESTO_MASTER_OBJS} ${PRESTO_MASTER_RFILES}
@@ -53,7 +53,7 @@ ${MASTER_RLIB}: ${PRESTO_PROTO} ${PRESTO_COMMON} ${PRESTO_MASTER_OBJS} ${PRESTO_
 	+${R_HOME}/bin/R CMD INSTALL --no-html -l ${R_INSTALL_DIR} $(PWD)/platform/master
 
 ${MASTER_BIN}: ${PRESTO_PROTO} ${PRESTO_COMMON} ${PRESTO_MASTER_OBJS}
-	g++ ${PRESTO_MASTER_OBJS} ${GCC_FLAGS} -o $@  -Wl,-rpath,${LIB_DIR} -lR-proto -Wl,-rpath,${LIB_DIR} -lR-common -lRInside -lR ${ZMQ_STATIC_LIB} ${PROTOBUF_STATIC_LIB}
+	${CXX} ${PRESTO_MASTER_OBJS} ${GCC_FLAGS_LINKS} -o $@  -Wl,-rpath,${LIB_DIR} -lR-proto -Wl,-rpath,${LIB_DIR} -lR-common -lRInside -lR ${ZMQ_STATIC_LIB} ${PROTOBUF_STATIC_LIB}
 
 # --- WORKER ---
 
@@ -64,12 +64,12 @@ ${WORKER_RLIB}: ${PRESTO_PROTO} ${PRESTO_COMMON} ${PRESTO_WORKER_OBJS} ${ATOMICI
 
 # Worker objects
 ${PRESTO_WORKER_DIR}/%.o: ${PRESTO_WORKER_DIR}/%.cpp ${PRESTO_WORKER_HEADERS} ${PRESTO_COMMON_HEADERS}
-	g++ $< -c ${GCC_FLAGS} -fPIC -o $@
+	${CXX} $< -c ${GCC_FLAGS} -fPIC -o $@
 
 # Worker binary
 ${WORKER_BIN}: ${PRESTO_PROTO} ${PRESTO_COMMON} ${PRESTO_WORKER_OBJS}
 	mkdir -p ${BIN_DIR}
-	g++ ${PRESTO_WORKER_OBJS} ${GCC_FLAGS} -o $@  -L${LIB_DIR} -lR-proto -L${LIB_DIR} -lR-common -Wl,-rpath,${LIB_DIR} -lRInside -lR ${ZMQ_STATIC_LIB} ${PROTOBUF_STATIC_LIB}
+	${CXX} ${PRESTO_WORKER_OBJS} ${GCC_FLAGS_LINK} -o $@  -L${LIB_DIR} -lR-proto -L${LIB_DIR} -lR-common -Wl,-rpath,${LIB_DIR} -lRInside -lR ${ZMQ_STATIC_LIB} ${PROTOBUF_STATIC_LIB}
 
 # --- EXECUTOR ---
 
@@ -80,12 +80,12 @@ ${EXECUTOR_RLIB}: ${PRESTO_COMMON} ${PRESTO_EXECUTOR_OBJS} ${PRESTO_EXECUTOR_RFI
 
 # Executor objects
 ${PRESTO_EXECUTOR_DIR}/%.o: ${PRESTO_EXECUTOR_DIR}/%.cpp ${PRESTO_EXECUTOR_HEADERS} ${PRESTO_COMMON_HEADERS}
-	g++ $< -c ${GCC_FLAGS} -fPIC -o $@
+	${CXX} $< -c ${GCC_FLAGS} -fPIC -o $@
 
 # Executor binary
 ${EXECUTOR_BIN}: ${PRESTO_COMMON} ${EXECUTOR_RLIB} ${PRESTO_EXECUTOR_OBJS}
 	mkdir -p ${BIN_DIR}
-	g++ ${PRESTO_EXECUTOR_OBJS} platform/common/ArrayData.o platform/common/DistDataFrame.o platform/common/DistList.o platform/common/common.o ${GCC_FLAGS} -o $@ -L${LIB_DIR} -lR-proto -Wl,-rpath,${LIB_DIR} -lRInside -lR ${ZMQ_STATIC_LIB} ${PROTOBUF_STATIC_LIB}
+	${CXX} ${PRESTO_EXECUTOR_OBJS} platform/common/ArrayData.o platform/common/DistDataFrame.o platform/common/DistList.o platform/common/common.o ${GCC_FLAGS} -o $@ -L${LIB_DIR} -lR-proto -Wl,-rpath,${LIB_DIR} -lRInside -lR ${ZMQ_STATIC_LIB} ${PROTOBUF_STATIC_LIB}
 
 # --- HELPER ---
 
@@ -96,4 +96,4 @@ ${MATRIX_HELPER_RLIB}: ${PRESTO_MATRIX_HELPER_OBJS} ${PRESTO_MATRIX_HELPER_RFILE
 
 # Helper objects
 ${PRESTO_MATRIX_HELPER_DIR}/%.o: ${PRESTO_EXECUTOR_DIR}/%.cpp
-	g++ $< -c ${GCC_FLAGS} -fPIC -o $@
+	${CXX} $< -c ${GCC_FLAGS} -fPIC -o $@
