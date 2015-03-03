@@ -53,7 +53,7 @@ ${MASTER_RLIB}: ${PRESTO_PROTO} ${PRESTO_COMMON} ${PRESTO_MASTER_OBJS} ${PRESTO_
 	+${R_HOME}/bin/R CMD INSTALL --no-html -l ${R_INSTALL_DIR} $(PWD)/platform/master
 
 ${MASTER_BIN}: ${PRESTO_PROTO} ${PRESTO_COMMON} ${PRESTO_MASTER_OBJS}
-	${CXX} ${PRESTO_MASTER_OBJS} ${GCC_FLAGS_LINKS} -o $@  -Wl,-rpath,${LIB_DIR} -lR-proto -Wl,-rpath,${LIB_DIR} -lR-common -lRInside -lR ${ZMQ_STATIC_LIB} ${PROTOBUF_STATIC_LIB}
+	${CXX} ${PRESTO_MASTER_OBJS} ${GCC_FLAGS_LINK} -o $@  -Wl,-rpath,${LIB_DIR} -lR-proto -Wl,-rpath,${LIB_DIR} -lR-common -lRInside -lR ${ZMQ_STATIC_LIB} ${PROTOBUF_STATIC_LIB}
 
 # --- WORKER ---
 
@@ -85,7 +85,7 @@ ${PRESTO_EXECUTOR_DIR}/%.o: ${PRESTO_EXECUTOR_DIR}/%.cpp ${PRESTO_EXECUTOR_HEADE
 # Executor binary
 ${EXECUTOR_BIN}: ${PRESTO_COMMON} ${EXECUTOR_RLIB} ${PRESTO_EXECUTOR_OBJS}
 	mkdir -p ${BIN_DIR}
-	${CXX} ${PRESTO_EXECUTOR_OBJS} platform/common/ArrayData.o platform/common/DistDataFrame.o platform/common/DistList.o platform/common/common.o ${GCC_FLAGS} -o $@ -L${LIB_DIR} -lR-proto -Wl,-rpath,${LIB_DIR} -lRInside -lR ${ZMQ_STATIC_LIB} ${PROTOBUF_STATIC_LIB}
+	${CXX} ${PRESTO_EXECUTOR_OBJS} platform/common/ArrayData.o platform/common/DistDataFrame.o platform/common/DistList.o platform/common/common.o ${GCC_FLAGS_LINK} -o $@ -L${LIB_DIR} -lR-proto -Wl,-rpath,${LIB_DIR} -lRInside -lR ${ZMQ_STATIC_LIB} ${PROTOBUF_STATIC_LIB}
 
 # --- HELPER ---
 
