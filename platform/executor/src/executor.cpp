@@ -47,15 +47,6 @@
 #include <utility>
 #include <vector>
 #include <math.h>
-
-//add by Yu Gong for gcc 4.9 or 5.0
- #include <R.h>
- #include <Rinternals.h>
- #include <Rdefines.h>
- #include <R_ext/Parse.h>
- #undef length
- #undef error
-//add end
 #include <RInside.h>
 #include "atomicio.h"
 #include "common.h"
@@ -109,24 +100,12 @@ set<tuple<string, bool, int64_t, int64_t> > *updatesptr;
  */
   RcppExport SEXP NewUpdate(SEXP updates_ptr_sexp, SEXP name_sexp, SEXP empty_sexp, SEXP dim_sexp) {
   BEGIN_RCPP
-			
-			LOG_DEBUG("update begin Yu Gong");
       if (updatesptr == NULL) {
         LOG_WARN("NewUpdate => updateptr is NULL");
         throw PrestoWarningException("NewUpdate::updatesptr is null");
       }
-			
-			const char* namechr=CHAR(asChar(name_sexp));
-     LOG_DEBUG("update step 1 get name");
-      std::string name = std::string(namechr);
-     LOG_DEBUG("update step 2 get is empty");
-      bool empty = asLogical(empty_sexp);
-     LOG_DEBUG("update step 3 get dim");
-      int64_t nr =(int64_t) REAL(dim_sexp)[0];
-      int64_t nc =(int64_t) REAL(dim_sexp)[1];
-     LOG_DEBUG("update step 4 do real update");
 
-      /*Rcpp::CharacterVector name_vec(name_sexp);
+      Rcpp::CharacterVector name_vec(name_sexp);
       Rcpp::LogicalVector empty_vec(empty_sexp);
       Rcpp::NumericVector dim_vec(dim_sexp);
       typedef Rcpp::CharacterVector::iterator char_itr;
@@ -141,11 +120,9 @@ set<tuple<string, bool, int64_t, int64_t> > *updatesptr;
       bool empty = empty_vec[0];
       int64_t nr = dim_vec[0];
       int64_t nc = dim_vec[1];
-			*/
+
       updatesptr->insert(make_tuple(name, empty, nr, nc));
-   LOG_DEBUG("update end Yu Gong");
-	 return ScalarLogical(true);
-	//return Rcpp::wrap(true);
+  return Rcpp::wrap(true);
   END_RCPP
 }
 
@@ -423,19 +400,11 @@ int ReadRawArgs(RInside& R) {  // NOLINT
     
     // if the raw varaible is passed through protobuf (size > 0)
     if (size > 0) {
-     /* Rcpp::RawVector raw(size);  // the value of this variable
+      Rcpp::RawVector raw(size);  // the value of this variable
       for (int j = 0; j < size; j++) {
         if (scanf("%c", &raw[j]) != 1)
           break;
-      } */
-			SEXP raw=PROTECT(allocVector(RAWSXP, size));
-      char eachchar;
-      for (int j = 0; j < size; j++) {
-        if (scanf("%c", &eachchar) != 1)
-           break;
-      RAW(raw)[j]=(Rbyte) eachchar;
-      }
-      UNPROTECT(1);
+      }      
       R["rawtmpvar..."] = raw;      
       R.parseEvalQ(cmd);
     } else {
@@ -482,17 +451,10 @@ int ReadRawArgs(RInside& R) {  // NOLINT
       LOG_DEBUG("ReadRawArgs - Receive from a master done - read size %d", bread);
       close(sock);
 
-      /*Rcpp::RawVector raw(data_size);
+      Rcpp::RawVector raw(data_size);
       for (int i=0; i<data_size;++i) {
         raw[i] = dest_[i];
-      }*/
-			
-      SEXP raw=PROTECT(allocVector(RAWSXP, size));
-     for (int i = 0; i <data_size; ++i ) {
-       RAW(raw)[i]=(Rbyte) dest_[i];
-     }
-     UNPROTECT(1);
-
+      }
       R["rawtmpvar..."] = raw;
       R.parseEvalQ(cmd);
       free(dest_);
@@ -570,35 +532,6 @@ int ReadCompositeArgs(RInside& R,  // NOLINT
   return composite_vars;
 }
 
-//add by Yu Gong
-void PatchParseEval(const char* cmd)
-{
- SEXP e, tmp;
-  int hadError;
-  ParseStatus status;
- LOG_DEBUG("R Parse cmd start");
-  PROTECT(tmp = mkString(cmd));
-  PROTECT(e = R_ParseVector(tmp, -1, &status, R_NilValue));
- LOG_DEBUG("R Parse cmd end, result is %d",status==PARSE_OK);
-  if (status==PARSE_OK)
- {
-   for(int i = 0; i < Rf_length(e); i++)
-   {
-   LOG_DEBUG("R eval start index is %d",i);
-    R_tryEval(VECTOR_ELT(e,i), R_GlobalEnv, &hadError);
-   LOG_DEBUG("R eval end, index is %d result is %d",hadError);
-   if (hadError)
-    {
-    LOG_ERROR("eval cmd error happens index is %d",i);
-   }
-   }
-  }else
-  {
-   LOG_ERROR("Parse %s Error",cmd);
- }
-  UNPROTECT(2);
-}
-//add end Yu Gong
 int main(int argc, char *argv[]) {
   // let this executor to be killed when a parent process (worker) terminates.
   prctl(PR_SET_PDEATHSIG, SIGKILL);
@@ -629,7 +562,6 @@ int main(int argc, char *argv[]) {
 
   InitializeConsoleLogger();
   LOG_INFO("Executor started.");
-	//enable debug Yu Gong
   LoggerFilter(atoi(argv[4]));
   
   // name of shared memory segment
@@ -743,9 +675,7 @@ int main(int argc, char *argv[]) {
       LOG_INFO(cmd);
       
       //Rcpp::Evaluator::run(exec_call, R_GlobalEnv);  // Run the given fucntion with Rcpp < 0.11
-      //Rcpp::Rcpp_eval(exec_call, R_GlobalEnv);
-		  LOG_DEBUG("Patch Parse Eval Yu Gong");	
-			PatchParseEval(cmd.c_str());
+      Rcpp::Rcpp_eval(exec_call, R_GlobalEnv);
       LOG_INFO("Function execution Complete.");
 
       // Send back updates to worker
