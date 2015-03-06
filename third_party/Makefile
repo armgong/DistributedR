@@ -1,6 +1,6 @@
 
 ZMQ_VERSION=4.0.5
-PROTOBUF_VERSION=2.3.0
+PROTOBUF_VERSION=2.6.1
 
 all: boost protobuf zmq  uuid
 boost: $(PWD)/third_party/install/lib/libboost_thread.a
