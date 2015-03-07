@@ -19,7 +19,6 @@
 #ifndef _DLOGGER_H_
 #define _DLOGGER_H_
 
-#define BOOST_54
 #ifdef BOOST_54
 
 #include <boost/log/common.hpp>

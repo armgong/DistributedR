@@ -22,7 +22,6 @@
 
 #ifndef _PRESTO_COMMON_
 #define _PRESTO_COMMON_
-#define BOOST_54
 #include <stdio.h>
 #include <inttypes.h>
 
