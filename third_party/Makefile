@@ -1,9 +1,8 @@
-
 ZMQ_VERSION=4.0.5
 PROTOBUF_VERSION=2.6.1
 
 all: boost protobuf zmq  uuid
-boost: $(PWD)/third_party/install/lib/libboost_thread.a
+boost: $(PWD)/third_party/install/lib/libboost_thread.so
 
 $(PWD)/third_party/boost_1_57_0/bootstrap.sh:
 	tar -zxf boost_1_57_0.tar.gz
@@ -11,6 +10,7 @@ $(PWD)/third_party/boost_1_57_0/bootstrap.sh:
 
 $(PWD)/third_party/install/lib/libboost_thread.a: $(PWD)/third_party/boost_1_57_0/bootstrap.sh
 	cd boost_1_57_0; ./b2 -j8 --without-python --without-mpi link=static,shared runtime-link=shared define=BOOST_LOG_DYN_LINK install
+
 
 protobuf: $(PWD)/third_party/install/lib/libprotobuf.a
 
@@ -23,7 +23,6 @@ zmq: $(PWD)/third_party/install/lib/libzmq.a
 $(PWD)/third_party/install/lib/libzmq.a: $(PWD)/third_party/install/lib/libuuid.a
 	tar -zxf zeromq-$(ZMQ_VERSION).tar.gz
 	mkdir -p install/include
-	cp zmq.hpp install/include
 	cd zeromq-$(ZMQ_VERSION); CFLAGS="-fPIC -I`pwd`/../install/include" CXXFLAGS="-fPIC -I`pwd`/../install/include" LDFLAGS="-fPIC -L`pwd`/../install/lib" ./configure --enable-static --enable-shared=no --prefix=$(PWD)/third_party/install && make -j8 && make install
 
 
