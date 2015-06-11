@@ -52,6 +52,8 @@
 #include <vector>
 #include <math.h>
 #include <RInside.h>
+#include <Rinterface.h>
+
 #include "atomicio.h"
 #include "common.h"
 #include "dLogger.h"
