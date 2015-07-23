@@ -21,6 +21,9 @@ CXX=g++
 BOOST_DIR = $(PWD)/third_party/install/include
 BOOST_LIB_DIR = $(PWD)/third_party/install/lib
 
+BLKIN_INCLUDE = $(PWD)/third_party/install/include/blkin
+BLKIN_LINKER_FLAGS = -lzipkin-c -lblkin-front -lzipkin-cpp
+
 PROTOC_BIN=$(PWD)/third_party/install/bin/protoc
 PROTOBUF_STATIC_LIB=$(PWD)/third_party/install/lib/libprotobuf.a
 #order matters
@@ -28,6 +31,10 @@ ZMQ_STATIC_LIB=$(PWD)/third_party/install/lib/libzmq.a $(PWD)/third_party/instal
 
 BOOST_THREADPOOL_DIR = $(PWD)/third_party/boost_threadpool/threadpool
 ATOMICIO_DIR = $(PWD)/third_party/atomicio
+
+# CGROUP VARIABLES
+CGROUP_DIR = $(PWD)/third_party/install/include
+CGROUP_LIB_DIR = $(PWD)/third_party/install/lib
 
 GEN_DIR = $(PWD)/platform/messaging/gen-cpp
 LIB_DIR = $(PWD)/lib
@@ -114,7 +121,9 @@ DEBUG = -g
 #EXECUTOR_TRYCATCH = -DEXECUTOR_TRYCATCH
 #MULTITHREADED_SCHEDULER = -DMULTITHREADED_SCHEDULER  # locking in multi-threaded scheduler is not 100% tested; use single thread until it affects performance
 GCC_FLAGS = -std=c++11 ${DEBUG} -O2 -fopenmp -DBOOST_54 -DNDEBUG ${INCLUDE_FLAGS} -Wno-deprecated-declarations -DSTRICT_R_HEADERS ${USE_MMAP_AS_SHMEM} ${SCHEDULER_LOGGING} ${OOC_SCHEDULER} ${USE_DYNAMIC_PARTITION} ${PROFILING} ${FAST_UPDATE} ${INCREASE_R_HEAP} ${UNIQUE_EXECUTOR_LOG_NAMES} ${EXECUTOR_TRYCATCH}
+
 CXXFLAGS=${GCC_FLAGS} -fPIC
+
 
 ATOMICIO_LIB=${ATOMICIO_DIR}/libatomicio.so
 PRESTO_PROTO=${LIB_DIR}/libR-proto.so

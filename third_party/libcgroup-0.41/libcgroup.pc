@@ -1,0 +1,10 @@
+prefix=/data/source/DistributedR/third_party/install
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: libcgroup
+Description: Control Group Configuration Library
+Version: 0.41
+Libs: -L${libdir} -lcgroup
+Cflags: -I${includedir}
