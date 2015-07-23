@@ -102,8 +102,8 @@ TUTORIAL_DATA_FILE = Data
 FAQ_FILE = FAQ
 TEST_OUTPUT_FILES=$(PWD)/test_platform.out
 
-INCLUDE_FLAGS = -DBOOST_LOG_DYN_LINK -DHAVE_NETINET_IN_H -DHAVE_INTTYPES_H -I ${BOOST_DIR} -I ${GEN_DIR} -I ${BOOST_THREADPOOL_DIR} -I ${ATOMICIO_DIR} -I ${PRESTO_COMMON_DIR} ${R_INCLUDE_FLAGS} ${RCPP_INCLUDE_FLAGS} ${RINSIDE_INCLUDE_FLAGS}
-LINK_FLAGS = -lm -rdynamic -L ${LIB_DIR} -Wl,-rpath,${LIB_DIR} ${R_LD_FLAGS} -lpthread -L$(BOOST_LIB_DIR) -Wl,-rpath,${BOOST_LIB_DIR} -lboost_thread -lboost_system -lboost_log -lboost_log_setup -lboost_chrono -lboost_filesystem -lboost_date_time -L ${ATOMICIO_DIR} -Wl,-rpath,${ATOMICIO_DIR} -latomicio ${RCPP_LD_FLAGS} ${RINSIDE_LD_FLAGS} -lrt -lsodium#-laio 
+INCLUDE_FLAGS = -DBOOST_LOG_DYN_LINK -DHAVE_NETINET_IN_H -DHAVE_INTTYPES_H -I ${CGROUP_DIR}   -I ${BOOST_DIR} -I ${GEN_DIR} -I ${BOOST_THREADPOOL_DIR} -I ${ATOMICIO_DIR} -I ${PRESTO_COMMON_DIR} ${R_INCLUDE_FLAGS} ${RCPP_INCLUDE_FLAGS} ${RINSIDE_INCLUDE_FLAGS}
+LINK_FLAGS = -lm  -L $(CGROUP_LIB_DIR) -Wl,-rpath,$(CGROUP_LIB_DIR) -lcgroup -rdynamic -L ${LIB_DIR} -Wl,-rpath,${LIB_DIR} ${R_LD_FLAGS} -lpthread -L$(BOOST_LIB_DIR) -Wl,-rpath,${BOOST_LIB_DIR} -lboost_thread -lboost_system -lboost_log -lboost_log_setup -lboost_chrono -lboost_filesystem -lboost_date_time -L ${ATOMICIO_DIR} -Wl,-rpath,${ATOMICIO_DIR} -latomicio ${RCPP_LD_FLAGS} ${RINSIDE_LD_FLAGS} -lrt -lsodium#-laio 
 
 DEBUG = -g
 #PROFILING = -DPROFILING

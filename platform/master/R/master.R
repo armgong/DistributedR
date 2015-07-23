@@ -189,7 +189,7 @@ start_workers <- function(cluster_conf,
   return(TRUE)
 }
 
-drstart<-distributedR_start <- function(inst=0, mem=0,
+distributedR_start <- function(inst=0, mem=0,
                          cluster_conf="",
                          log=2) {
   
@@ -285,6 +285,18 @@ conf2df <- function(cluster_conf) {
   }}, error = handle_presto_exception)
 }
 
+# read the config file and determine if the flag isColocated is true or false.
+isColocated <- function(cluster_conf){
+tryCatch({
+   if(file.access(cluster_conf,mode=4)==-1) stop("Cannot read configuration file. Check file permissions.")
+   conf_xml <- xmlToList(cluster_conf)
+   iscolocated <- FALSE
+   if(!is.null(conf_xml$ServerInfo$isColocatedWithVertica)){
+	iscolocated <- conf_xml$ServerInfo$isColocatedWithVertica
+   }
+   return(as.logical(iscolocated))
+}, error = handle_presto_exception)
+}
 
 #read the config file and determine the DSN name.
 getDSN_Name <- function(cluster_conf){
@@ -295,7 +307,7 @@ tryCatch({
 }, error = handle_presto_exception)
 }
 
-drshut<-distributedR_shutdown <- function(pm=NA, quiet=FALSE) {
+distributedR_shutdown <- function(pm=NA, quiet=FALSE) {
   ret<-TRUE
   if(class(pm) != "Rcpp_PrestoMaster"){
     tryCatch(pm <- get_pm_object(), error=function(e){})
@@ -348,7 +360,7 @@ clear_presto_r_objs <- function(darray_only=TRUE) {
   TRUE
 }
 
-drstat<-distributedR_status <- function(help=FALSE){
+distributedR_status <- function(help=FALSE){
   stat_df <- NA
   tryCatch({
     pm <- get_pm_object()
@@ -376,7 +388,7 @@ drstat<-distributedR_status <- function(help=FALSE){
   },error = handle_presto_exception)
 }
 
-drmaster<-distributedR_master_info <- function() {
+distributedR_master_info <- function() {
   tryCatch({
     pm <- get_pm_object()
     if (!is.null(pm)) {
