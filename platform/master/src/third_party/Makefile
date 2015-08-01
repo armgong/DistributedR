@@ -1,7 +1,9 @@
 .PHONY: atomicio
 
-ZMQ_VERSION=2.2.0
+ZMQ_VERSION=4.1.2
 PROTOBUF_VERSION=2.6.1
+BOOST_VERSION=1_58_0
+
 INSTALLDIR=$(abspath install/)
 NCORES=$(shell getconf _NPROCESSORS_ONLN)
 
@@ -10,12 +12,12 @@ all: boost protobuf zmq uuid atomicio cgroup
 
 boost: $(INSTALLDIR)/lib/libboost_chrono.a $(INSTALLDIR)/lib/libboost_date_time.a $(INSTALLDIR)/lib/libboost_filesystem.a $(INSTALLDIR)/lib/libboost_log.a $(INSTALLDIR)/lib/libboost_log_setup.a $(INSTALLDIR)/lib/libboost_system.a $(INSTALLDIR)/lib/libboost_thread.a
 
-boost_1_50_0/b2:
-	tar xf boost_1_50_0.tar.gz
-	cd boost_1_50_0; ./bootstrap.sh --with-libraries=thread,system,log,chrono
+boost/b2:
+	tar xf boost_${BOOST_VERSION}.tar.gz
+	cd boost_${BOOST_VERSION}; ./bootstrap.sh --with-libraries=thread,system,log,chrono
 
-$(INSTALLDIR)/lib/libboost_chrono.a $(INSTALLDIR)/lib/libboost_date_time.a $(INSTALLDIR)/lib/libboost_filesystem.a $(INSTALLDIR)/lib/libboost_log.a $(INSTALLDIR)/lib/libboost_log_setup.a $(INSTALLDIR)/lib/libboost_system.a $(INSTALLDIR)/lib/libboost_thread.a: boost_1_50_0/b2
-	cd boost_1_50_0; ./b2 -j$(NCORES) --with-thread --with-log --with-chrono --with-system cxxflags=-fPIC link=static runtime-link=shared --stagedir=$(INSTALLDIR)/ stage
+$(INSTALLDIR)/lib/libboost_chrono.a $(INSTALLDIR)/lib/libboost_date_time.a $(INSTALLDIR)/lib/libboost_filesystem.a $(INSTALLDIR)/lib/libboost_log.a $(INSTALLDIR)/lib/libboost_log_setup.a $(INSTALLDIR)/lib/libboost_system.a $(INSTALLDIR)/lib/libboost_thread.a: boost/b2
+	cd boost_${BOOST_VERSION}; ./b2 -j$(NCORES) --with-thread --with-log --with-chrono --with-system cxxflags=-fPIC link=static runtime-link=shared --stagedir=$(INSTALLDIR)/ stage
 
 protobuf: $(INSTALLDIR)/lib/libprotobuf.a  $(INSTALLDIR)/lib/libprotobuf-lite.a  $(INSTALLDIR)/lib/libprotoc.a $(INSTALLDIR)/bin/protoc
 
@@ -26,7 +28,7 @@ $(INSTALLDIR)/lib/libprotobuf.a  $(INSTALLDIR)/lib/libprotobuf-lite.a  $(INSTALL
 zmq: $(INSTALLDIR)/lib/libzmq.a
 
 $(INSTALLDIR)/lib/libzmq.a: $(INSTALLDIR)/lib/libuuid.a
-	tar xf zeromq-2.2.0.tar.gz
+	tar xf zeromq-${ZMQ_VERSION}.tar.gz
 	cd zeromq-$(ZMQ_VERSION); CFLAGS="-fPIC -I$(INSTALLDIR)/include" CXXFLAGS="-fPIC -I$(INSTALLDIR)/include" LDFLAGS="-fPIC -L$(INSTALLDIR)/lib" ./configure --enable-static --enable-shared=no --prefix=$(INSTALLDIR) && make -j$(NCORES) && make install
 
 
@@ -47,7 +49,7 @@ blkin: $(INSTALLDIR)/lib/libzipkin-cpp.so
 
 $(INSTALLDIR)/lib/libzipkin-cpp.a: $(INSTALLDIR)/lib/libboost_chrono.a
 	tar -zxf blkin.tar.gz
-	cd blkin/; autoreconf -fi; CFLAGS="-fPIC -I$(INSTALLDIR)/../boost_1_50_0" CXXFLAGS="-fPIC -I$(INSTALLDIR)/../boost_1_50_0" LDFLAGS=-fPIC ./configure --prefix=$(INSTALLDIR) --enable-static --enable-shared=no --without-babeltrace; make -j$(NCORES) && make install; 
+	cd blkin/; autoreconf -fi; CFLAGS="-fPIC -I$(INSTALLDIR)/../boost_${BOOST_VERSION}" CXXFLAGS="-fPIC -I$(INSTALLDIR)/../boost_${BOOST_VERSION}" LDFLAGS=-fPIC ./configure --prefix=$(INSTALLDIR) --enable-static --enable-shared=no --without-babeltrace; make -j$(NCORES) && make install; 
 	
 clean: 
 	rm -rf $(INSTALLDIR)/bin/protoc
@@ -61,6 +63,7 @@ clean:
 	cd protobuf-$(PROTOBUF_VERSION) && make clean
 	cd libcgroup-0.41 && make clean
 	cd atomicio && make clean
-	cd boost_1_50_0/ && ./b2 --clean
-	rm -rf boost_1_50_0/stage/
-	rm -rf boost_1_50_0/b2
+	cd boost_${BOOST_VERSION}/ && ./b2 --clean
+	rm -rf boost_${BOOST_VERSION}/stage/
+	rm -rf boost_${BOOST_VERSION}/b2
+ 

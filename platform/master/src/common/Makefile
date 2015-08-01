@@ -3,7 +3,7 @@
 
 R_CXXFLAGS = $(shell R CMD config --cppflags)  $(shell Rscript -e "Rcpp:::CxxFlags()") $(shell Rscript -e "RInside:::CxxFlags()")
 
-CXXFLAGS = -fPIC -std=c++0x -g -O2 -fopenmp -finline-limit=10000 -DNDEBUG -I../third_party/install/include -I../messaging/gen-cpp/  -I./ -I../third_party/boost_1_50_0/
+CXXFLAGS =-DBOOST_54 -fPIC -std=c++11 -g -O2 -fopenmp -finline-limit=10000 -DNDEBUG -I../third_party/install/include -I../messaging/gen-cpp/  -I./ -I../third_party/boost_1_58_0/
 
 LDFLAGS = -L../third_party/install/lib
 

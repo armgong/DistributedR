@@ -2,16 +2,18 @@
 /lib
 /install
 /platform/messaging/gen-cpp/
-/third_party/install/
-/third_party/install1/
-/third_party/boost_1_50_0/
-/third_party/boost_1_57_0/
-/third_party/protobuf-2.3.0/
-/third_party/protobuf-2.6.1/
-/third_party/zeromq-2.2.0/
-/third_party/zeromq-4.0.5/
-/third_party/libuuid-1.0.3/
-/third_party/*.tar.gz
+/platform/master/src/third_party/install/
+/platform/master/src/third_party/install1/
+/platform/master/src/third_party/boost_1_50_0/
+/platform/master/src/third_party/boost_1_57_0/
+/platform/master/src/third_party/boost_1_58_0/
+/platform/master/src/third_party/protobuf-2.3.0/
+/platform/master/src/third_party/protobuf-2.6.1/
+/platform/master/src/third_party/zeromq-2.2.0/
+/platform/master/src/third_party/zeromq-4.0.5/
+/platform/master/src/third_party/zeromq-4.1.2/
+/platform/master/src/third_party/libuuid-1.0.3/
+/platform/master/src/third_party/*.tar.gz
 .Rdata
 .Rhistory
 *.o
@@ -33,13 +35,13 @@ install/
 ### Generated Protobuf Files
 platform/messaging/gen-cpp/
 
-### Compiled third_party packages
-third_party/boost_1_50_0/
-third_party/install/
-third_party/libuuid-1.0.3/
-third_party/protobuf-2.3.0/
-third_party/zeromq-2.2.0/
-third_party/libcgroup-0.41/
+### Compiled platform/master/src/third_party packages
+platform/master/src/third_party/boost_1_50_0/
+platform/master/src/third_party/install/
+platform/master/src/third_party/libuuid-1.0.3/
+platform/master/src/third_party/protobuf-2.3.0/
+platform/master/src/third_party/zeromq-2.2.0/
+platform/master/src/third_party/libcgroup-0.41/
 ### Generated C++ Files
 # Compiled Object files
 *.slo
