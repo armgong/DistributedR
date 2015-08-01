@@ -94,6 +94,26 @@ uninstall:
 	R CMD REMOVE platform/master
 	R CMD REMOVE platform/matrix_helper
 
+install_algorithms:
+	R CMD INSTALL algorithms/HPdata
+	R CMD INSTALL algorithms/HPdclassifier
+	R CMD INSTALL algorithms/HPdcluster
+	R CMD INSTALL algorithms/HPdgraph
+	R CMD INSTALL algorithms/HPdregression
+
+uninstall_algorithms:
+	R CMD REMOVE algorithms/HPdata
+	R CMD REMOVE algorithms/HPdclassifier
+	R CMD REMOVE algorithms/HPdcluster
+	R CMD REMOVE algorithms/HPdgraph
+	R CMD REMOVE algorithms/HPdregression
+
+install_vRODBC:
+	R CMD INSTALL vRODBC
+
+uninstall_vRODBC:
+	R CMD REMOVE vRODBC
+
 clean:
 	cd platform/master/src; make -f Makevars clean; cd ../../../
 
