@@ -25,8 +25,10 @@
 #include <vector>
 #include <algorithm>
 #include <inttypes.h>
+#include <unistd.h>
 
-#include <boost/interprocess/detail/move.hpp>  // doesn't compile without this for some reason.........
+#include <Rcpp.h>
+#include <Rinternals.h>
 
 using namespace std;
 
@@ -41,7 +43,7 @@ static SEXP RSymbol_x = NULL;
 
 #define INSTALL_SYMBOL(symbol) \
   if (RSymbol_##symbol == NULL) { \
-    RSymbol_##symbol = install(#symbol); \
+    RSymbol_##symbol = Rf_install(#symbol); \
   }
 
 typedef Rcpp::CharacterVector::iterator char_itr;
@@ -136,10 +138,10 @@ RcppExport SEXP ReadSparse(SEXP fn_sexp, SEXP d,
   SEXP mx;
   PROTECT(mx = Rf_eval(create_spm_call, R_GlobalEnv));
 
-  setAttrib(mx, RSymbol_Dim, d);
-  setAttrib(mx, RSymbol_i, i_vec);
-  setAttrib(mx, RSymbol_p, p_vec);
-  setAttrib(mx, RSymbol_x, x_vec);
+  Rf_setAttrib(mx, RSymbol_Dim, d);
+  Rf_setAttrib(mx, RSymbol_i, i_vec);
+  Rf_setAttrib(mx, RSymbol_p, p_vec);
+  Rf_setAttrib(mx, RSymbol_x, x_vec);
 
   UNPROTECT(1);
 
@@ -228,10 +230,10 @@ RcppExport SEXP ReadSparseColPartition(SEXP fn_sexp, SEXP d,
   SEXP mx;
   PROTECT(mx = Rf_eval(create_spm_call, R_GlobalEnv));
 
-  setAttrib(mx, RSymbol_Dim, d);
-  setAttrib(mx, RSymbol_i, i_vec);
-  setAttrib(mx, RSymbol_p, p_vec);
-  setAttrib(mx, RSymbol_x, x_vec);
+  Rf_setAttrib(mx, RSymbol_Dim, d);
+  Rf_setAttrib(mx, RSymbol_i, i_vec);
+  Rf_setAttrib(mx, RSymbol_p, p_vec);
+  Rf_setAttrib(mx, RSymbol_x, x_vec);
 
   UNPROTECT(2);
 
@@ -363,10 +365,10 @@ RcppExport SEXP ReadSparse2DPartition(SEXP fn_sexp, SEXP d,
   SEXP mx;
   PROTECT(mx = Rf_eval(create_spm_call, R_GlobalEnv));
 
-  setAttrib(mx, RSymbol_Dim, d);
-  setAttrib(mx, RSymbol_i, i_vec);
-  setAttrib(mx, RSymbol_j, j_vec);
-  setAttrib(mx, RSymbol_x, x_vec);
+  Rf_setAttrib(mx, RSymbol_Dim, d);
+  Rf_setAttrib(mx, RSymbol_i, i_vec);
+  Rf_setAttrib(mx, RSymbol_j, j_vec);
+  Rf_setAttrib(mx, RSymbol_x, x_vec);
 
   UNPROTECT(1);
 
