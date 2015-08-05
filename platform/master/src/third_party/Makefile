@@ -13,7 +13,7 @@ all: boost protobuf zmq uuid atomicio cgroup
 boost: $(INSTALLDIR)/lib/libboost_chrono.a $(INSTALLDIR)/lib/libboost_date_time.a $(INSTALLDIR)/lib/libboost_filesystem.a $(INSTALLDIR)/lib/libboost_log.a $(INSTALLDIR)/lib/libboost_log_setup.a $(INSTALLDIR)/lib/libboost_system.a $(INSTALLDIR)/lib/libboost_thread.a
 
 boost/b2:
-	tar xf boost_${BOOST_VERSION}.tar.gz
+	if [ ! -d "boost_${BOOST_VERSION}" ]; then tar xf boost_${BOOST_VERSION}.tar.gz; fi
 	cd boost_${BOOST_VERSION}; ./bootstrap.sh --with-libraries=thread,system,log,chrono
 
 $(INSTALLDIR)/lib/libboost_chrono.a $(INSTALLDIR)/lib/libboost_date_time.a $(INSTALLDIR)/lib/libboost_filesystem.a $(INSTALLDIR)/lib/libboost_log.a $(INSTALLDIR)/lib/libboost_log_setup.a $(INSTALLDIR)/lib/libboost_system.a $(INSTALLDIR)/lib/libboost_thread.a: boost/b2
