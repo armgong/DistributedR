@@ -34,6 +34,26 @@ uninstall:
 	R CMD REMOVE distributedR
 	R CMD REMOVE Executor
 
+install_algorithms:
+	R CMD INSTALL algorithms/HPdata
+	R CMD INSTALL algorithms/HPdclassifier
+	R CMD INSTALL algorithms/HPdcluster
+	R CMD INSTALL algorithms/HPdgraph
+	R CMD INSTALL algorithms/HPdregression
+
+uninstall_algorithms:
+	R CMD REMOVE algorithms/HPdata
+	R CMD REMOVE algorithms/HPdclassifier
+	R CMD REMOVE algorithms/HPdcluster
+	R CMD REMOVE algorithms/HPdgraph
+	R CMD REMOVE algorithms/HPdregression
+
+install_vRODBC:
+	R CMD INSTALL vRODBC
+
+uninstall_vRODBC:
+	R CMD REMOVE vRODBC
+
 clean:
 	cd platform/master/src; make -f Makevars clean; cd ../../../
 
@@ -99,25 +119,3 @@ algorithm_docs:
 	R CMD Rd2pdf --no-preview --force --output=$(DOC_DIR_ALGORITHMS)/HPdgraph/HPdgraph-Manual.pdf $(PWD)/algorithms/HPdgraph
 	mkdir -p $(DOC_DIR_ALGORITHMS)/HPdata
 	R CMD Rd2pdf --no-preview --force --output=$(DOC_DIR_ALGORITHMS)/HPdata/HPdata-Manual.pdf $(PWD)/algorithms/HPdata
-
-
-
-install_algorithms:
-	R CMD INSTALL algorithms/HPdata
-	R CMD INSTALL algorithms/HPdclassifier
-	R CMD INSTALL algorithms/HPdcluster
-	R CMD INSTALL algorithms/HPdgraph
-	R CMD INSTALL algorithms/HPdregression
-
-uninstall_algorithms:
-	R CMD REMOVE algorithms/HPdata
-	R CMD REMOVE algorithms/HPdclassifier
-	R CMD REMOVE algorithms/HPdcluster
-	R CMD REMOVE algorithms/HPdgraph
-	R CMD REMOVE algorithms/HPdregression
-
-install_vRODBC:
-	R CMD INSTALL vRODBC
-
-uninstall_vRODBC:
-	R CMD REMOVE vRODBC

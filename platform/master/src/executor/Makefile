@@ -6,7 +6,7 @@ R_LDFLAGS = -L$(shell Rscript -e "cat(R.home('home'), '/lib', sep='')") -lR -L$(
 
 CXXFLAGS =-DBOOST_54 -fPIC -std=c++11 -g -O2 -fopenmp -finline-limit=10000 -DNDEBUG -I../third_party/install/include   -I./ -I../common/ -I../messaging/gen-cpp -DSTRICT_R_HEADERS -I../third_party/boost_1_58_0/ -I..
 
-LDFLAGS = -L../third_party/install/lib -lpthread -lboost_thread -lboost_system -lboost_log -lboost_log_setup -lboost_chrono -lboost_filesystem -lboost_date_time -latomicio -lR-common -lzmq -luuid -lrt
+LDFLAGS = -L../third_party/install/lib -lpthread -lboost_thread -lboost_system -lboost_log -lboost_log_setup -lboost_chrono -lboost_filesystem -lboost_date_time -latomicio -lR-common -lzmq -luuid -lrt -lsodium
 
 # To enable zipkin-based tracing add the following to CXXFLAGS and LDFLAGS
 #   BLKIN_INCLUDE = -I../third_party/install/include/blkin -DPERF_TRACE
