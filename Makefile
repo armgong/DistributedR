@@ -24,6 +24,22 @@
 
 .PHONY: test docs manual tutorial faq
 
+## === Build targets
+
+install:
+	R CMD INSTALL platform/executor
+	R CMD INSTALL platform/master
+
+uninstall:
+	R CMD REMOVE distributedR
+	R CMD REMOVE Executor
+
+clean:
+	cd platform/master/src; make -f Makevars clean; cd ../../../
+
+dist-clean:
+	cd platform/master/src; make -f Makevars clean-third-party; cd ../../../
+
 ## === Test targets
 TEST_OUTPUT_FILES=$(PWD)/test_platform.out
 
@@ -87,12 +103,10 @@ algorithm_docs:
 install:
 	R CMD INSTALL platform/executor
 	R CMD INSTALL platform/master
-	R CMD INSTALL platform/matrix_helper
 
 uninstall:
 	R CMD REMOVE platform/executor
 	R CMD REMOVE platform/master
-	R CMD REMOVE platform/matrix_helper
 
 install_algorithms:
 	R CMD INSTALL algorithms/HPdata
