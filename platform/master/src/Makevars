@@ -38,8 +38,6 @@ worker: third_party messaging common
 executor: third_party messaging common
 	(cd executor; make -j$(NCORES) )
 
-ddc:
-	(cd distributed-data-connector/ddc/; make)
 
 clean:
 	(cd messaging; make clean )
@@ -63,6 +61,9 @@ PKG_LIBS += -Lthird_party/install/lib -lpthread -lboost_thread -lboost_system -l
 
 PKG_CPPFLAGS = -DBOOST_54 -Ithird_party/boost_1_58_0 -Ithird_party/install/include -Imessaging/gen-cpp -Icommon/ -DSTRICT_R_HEADERS -std=c++11 -fPIC -g -O2 -fopenmp -finline-limit=10000 -DNDEBUG $(R_CXXFLAGS)
 
+
 # To enable zipkin-based tracing add the following to PKG_LIBS and PKG_CPPFLAGS
 #   BLKIN_INCLUDE = -Ithird_party/install/include/blkin -DPERF_TRACE
 #   BLKIN_LINKER_FLAGS = -lzipkin-c -lblkin-front -lzipkin-cpp
+
+PKG_LIBS += -Lthird_party/install/lib -lpthread -lboost_thread -lboost_system -lboost_log -lboost_log_setup -lboost_chrono -lboost_filesystem -lboost_date_time -latomicio -lR-common -lR-proto -lzmq -luuid -lprotobuf
