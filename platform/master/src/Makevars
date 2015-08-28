@@ -59,7 +59,7 @@ PKG_LIBS = $(R_LDFLAGS)
 
 PKG_LIBS += -Lthird_party/install/lib -lpthread -lboost_thread -lboost_system -lboost_log -lboost_log_setup -lboost_chrono -lboost_filesystem -lboost_date_time -latomicio -lR-common -lR-proto -lzmq -luuid -lprotobuf -lsodium
 
-PKG_CPPFLAGS = -DBOOST_54 -Ithird_party/boost_1_58_0 -Ithird_party/install/include -Imessaging/gen-cpp -Icommon/ -DSTRICT_R_HEADERS -std=c++11 -fPIC -g -O2 -fopenmp -finline-limit=10000 -DNDEBUG $(R_CXXFLAGS)
+PKG_CPPFLAGS = -DBOOST_54 -Ithird_party/boost_1_59_0 -Ithird_party/install/include -Imessaging/gen-cpp -Icommon/ -DSTRICT_R_HEADERS -std=c++11 -fPIC -g -O2 -fopenmp -finline-limit=10000 -DNDEBUG $(R_CXXFLAGS)
 
 
 # To enable zipkin-based tracing add the following to PKG_LIBS and PKG_CPPFLAGS
