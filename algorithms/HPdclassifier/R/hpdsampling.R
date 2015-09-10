@@ -43,6 +43,9 @@ hpdsampling <- function(dfX,daY, nClass, sampleThresh=100)
    if(missing(daY))
 	stop("'daY' is a required argument")
 
+   if(missing(nClass))
+	stop("'nClass' is a required argument")
+
    if(nrow(dfX) != nrow(daY))
   		stop("'daY' must have same number of rows as 'dfX'")
 
@@ -57,9 +60,15 @@ hpdsampling <- function(dfX,daY, nClass, sampleThresh=100)
    if(!is.dframe(daY) && !is.darray(daY))
        stop("'daY' must be a dframe or darray")
 
-    if (sampleThresh < 100)
-       stop("'sampleThresh' must be larger than 100")
+   if ( (missing(nClass)) & ((is.dframe(X_train))) | ((is.darray(X_train))) )
+	stop("'nClass' is a required argument for X_train as dframe or darray")
 
+   if (!( (is.numeric(nClass)) & (length(nClass)==1) & (nClass%%1 == 0) & (nClass > 0) )) 
+        stop("'nClass' must be a positive integer")
+
+  
+   if (!( (is.numeric(sampleThresh)) & (length(sampleThresh)==1) & (sampleThresh > 0) ))
+        stop("'sampleThresh' must be a positive number")
 
 
    # sample size planning
@@ -90,9 +99,16 @@ hpdsampling <- function(dfX,daY, nClass, sampleThresh=100)
   for ( k in 1: npartition) { # npartition
       # distributed sampling: The input and output have the same npartition 
       foreach(i, 1:npartition, function(X_train2=splits(dfX,i),Y_train2=splits(daY,i),SX_train=splits(dfSX,i),SY_train=splits(daSY,i), Ns=Ns ) {
-          index <- sample(1:nrow(X_train2), Ns)
-          SX_train <- X_train2[index,]
-          SY_train <- Y_train2[index,]
+          if (Ns < nrow(X_train2)) {
+             index <- sample(1:nrow(X_train2), Ns)
+             SX_train <- X_train2[index,]
+             SY_train <- Y_train2[index,]
+           } else {
+             Ns<- ceiling (0.95 * nrow(X_train2))
+             index <- sample(1:nrow(X_train2), Ns)
+             SX_train <- X_train2[index,]
+             SY_train <- Y_train2[index,]
+          }
 
           update(SX_train)
           update(SY_train)
