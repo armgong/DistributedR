@@ -8,8 +8,7 @@
 #################################################################################################
 ######################### generate testing scenarios for classification ######################### 
 library(gbm)
-#library(caTools)
-library(testthat)
+#library(testthat)
 library(HPdclassifier)
 
 
@@ -34,10 +33,13 @@ ind <- sample(2,nrow(iris),replace=TRUE,prob=c(0.7,0.3))
 train.iris <- iris[ind==1,]
 valid.iris <- iris[ind==2,]
 
-X_train <- train.iris
-Y_train <- train.iris$Species ### Y_train is a "factor" vector
-Y_train1 <- as.data.frame(Y_train) ### Y_train1 is a list (data.frame)
-Y_train2 <- unlist(Y_train1)       ### unlist: Y_train2 is a "factor" vector
+X_train0 <- train.iris
+Y_train0 <- train.iris$Species ### Y_train is a "factor" vector
+Y_train1 <- as.data.frame(Y_train0) ### Y_train1 is a data.frame
+Y_train2 <- unlist(Y_train1)       ### unlist or as.factor: Y_train2 is a "factor" vector
+
+rm(X_train0)
+rm(Y_train0)
   
 X_train1 <- as.data.frame(as.matrix(cbind(train.iris$Sepal.Length, train.iris$Sepal.Width,train.iris$Petal.Length,train.iris$Petal.Width))) 
 colnames(X_train1) <- c("Sepal.Length", "Sepal.Width", "Petal.Length", "Petal.Width") 
@@ -162,7 +164,7 @@ test_that("Test classification accuracy: AdaBoost", {
        var.monotone = NULL,
        nTrain = NULL,
        train.fraction = NULL,
-       keep.data = TRUE,
+       keep.data = FALSE,
        verbose = FALSE, # If TRUE, gbm will print out progress and performanc eindicators
        var.names = NULL,
        #response.name = "y",
@@ -232,7 +234,7 @@ test_that("Test classification accuracy: AdaBoost", {
        var.monotone = NULL,
        nTrain = NULL,
        train.fraction = NULL,
-       keep.data = TRUE,
+       keep.data = FALSE,
        verbose = FALSE, # If TRUE, gbm will print out progress and performanc eindicators
        var.names = NULL,
        #response.name = "y",
@@ -302,7 +304,7 @@ test_that("Test classification accuracy: AdaBoost", {
        var.monotone = NULL,
        nTrain = NULL,
        train.fraction = NULL,
-       keep.data = TRUE,
+       keep.data = FALSE,
        verbose = FALSE, # If TRUE, gbm will print out progress and performanc eindicators
        var.names = NULL,
        #response.name = "y",
@@ -374,7 +376,7 @@ test_that("Test classification accuracy: bernoulli", {
        var.monotone = NULL,
        nTrain = NULL,
        train.fraction = NULL,
-       keep.data = TRUE,
+       keep.data = FALSE,
        verbose = FALSE, # If TRUE, gbm will print out progress and performanc eindicators
        var.names = NULL,
        #response.name = "y",
@@ -444,7 +446,7 @@ test_that("Test classification accuracy: bernoulli", {
        var.monotone = NULL,
        nTrain = NULL,
        train.fraction = NULL,
-       keep.data = TRUE,
+       keep.data = FALSE,
        verbose = FALSE, # If TRUE, gbm will print out progress and performanc eindicators
        var.names = NULL,
        #response.name = "y",
@@ -514,7 +516,7 @@ test_that("Test classification accuracy: bernoulli", {
        var.monotone = NULL,
        nTrain = NULL,
        train.fraction = NULL,
-       keep.data = TRUE,
+       keep.data = FALSE,
        verbose = FALSE, # If TRUE, gbm will print out progress and performanc eindicators
        var.names = NULL,
        #response.name = "y",
@@ -582,7 +584,7 @@ test_that("Test classification accuracy: multinomial", {
        var.monotone = NULL,
        nTrain = NULL,
        train.fraction = NULL,
-       keep.data = TRUE,
+       keep.data = FALSE,
        verbose = FALSE, # If TRUE, gbm will print out progress and performanc eindicators
        var.names = NULL,
        #response.name = "y",
@@ -598,11 +600,9 @@ test_that("Test classification accuracy: multinomial", {
     Predictions7 <- predict.hpdegbm(finalModel7, newdata7, type="response", trace = FALSE)
     print(Predictions7)
     as.factor(valid.iris$Species)
-    print(table (Predictions7, as.numeric(valid.iris$Species)))
-    result7 <- table (Predictions7, as.numeric(valid.iris$Species))
-    aa7 <- Predictions7 - as.numeric(valid.iris$Species)
-    correctCount7 <- sum(aa7 == 0)
-    errorRate7 <- 1 - correctCount7/(nrow(newdata7))
+    print(table ((Predictions7), (valid.iris$Species)))
+    result7 <- table ((Predictions7), (valid.iris$Species))
+    errorRate7 <- 1 - sum(diag(result7))/sum(result7)
     print(errorRate7)
 
 
@@ -724,7 +724,7 @@ test_that("Test regression accuracy: gaussian", {
        var.monotone = NULL,
        nTrain = NULL,
        train.fraction = NULL,
-       keep.data = TRUE,
+       keep.data = FALSE,
        verbose = FALSE, # If TRUE, gbm will print out progress and performanc eindicators
        var.names = NULL,
        #response.name = "y",
@@ -785,11 +785,44 @@ test_that("Test regression accuracy: gaussian", {
 
 
 
+
+###############################################################################################
+context("centralized and distributed prediction of iris real data")
+data(iris)
+irisX       <- iris[which(names(iris) != "Species")]
+irisY       <- as.character(iris$Species)
+trainPerc   <- 0.8
+trainIdx    <- sample(1:nrow(irisX), ceiling(trainPerc * nrow(irisX)))
+irisX_train <- irisX[trainIdx,]
+irisY_train <- irisY[trainIdx]
+irisX_test  <- irisX[-trainIdx,]
+irisY_test  <- irisY[-trainIdx]
+ 
+dirisX_train <- as.dframe(irisX_train)
+dirisY_train <- as.dframe(as.data.frame(irisY_train))
+dirisX_test  <- as.dframe(irisX_test)
+dirisY_test  <- as.dframe(as.data.frame(irisY_test))
+
+# Big data case
+dmod <- hpdegbm(dirisX_train, dirisY_train, distribution = 'multinomial',
+                   nClass = 3)
+
+# centralized prediction of multi-class classification
+a <- predict.hpdegbm(dmod, irisX_test, type="response")
+a
+
+
+# distributed prediction of multi-class classification
+b <- predict.hpdegbm(dmod, dirisX_test, type="response")
+b
+
+
+
 context("Checking the interface of hpdegbm")
 test_that("The tree hyper-parameters are validated for AdaBoost", {
     expect_error(hpdegbm(X_train, Y_train, nExecutor=4, n.trees=-1000, distribution = "adaboost", nClass=2), "'n.trees' must be a positive integer") 
 
-    expect_error(hpdegbm(X_train, Y_train,  nExecutor=4, n.trees= 1000, interaction.depth = -3, distribution = "adaboost", nClass=2), "'interaction.depth' must be at least 1") 
+    expect_error(hpdegbm(X_train, Y_train,  nExecutor=4, n.trees= 1000, interaction.depth = -3, distribution = "adaboost", nClass=2), "'interaction.depth' must be a positive integer") 
 
     expect_error(hpdegbm(X_train, Y_train,  nExecutor=4, n.trees= 1000, interaction.depth = 3,  n.minobsinnode = -10, distribution = "adaboost", nClass=2), "'n.minobsinnode' must be a positive integer")
 }) 
@@ -800,7 +833,7 @@ test_that("The inputs are validated for AdaBoost", {
 
     expect_error(hpdegbm(X_train=X_train,  nExecutor=4, n.trees=1000, distribution = "adaboost", nClass=2), "'Y_train' is a required argument")  
     
-    expect_error(hpdegbm(X_train, Y_train, nExecutor=-4, Y_train, n.trees=1000,  distribution = "adaboost", nClass=2), "nExecutor should be a positive integer number") 
+    expect_error(hpdegbm(X_train, Y_train, nExecutor=-4, Y_train, n.trees=1000,  distribution = "adaboost", nClass=2), " 'nExecutor' must be a positive integer number") 
 })
 
 
