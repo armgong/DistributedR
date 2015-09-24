@@ -167,7 +167,10 @@
 	return(list(forest=forest, oob_indices = oob_indices))
 }
 
-.computeHistogramsAndSplits <- function(observations, responses, forest, active_nodes, workers, max_nodes, cp = 1, trace = FALSE, hist = NULL)
+.computeHistogramsAndSplits <- function(observations, responses, forest, 
+			    active_nodes, workers, max_nodes, cp = 1, 
+			    min_split = 1, max_depth = 10000, 
+			    trace = FALSE, hist = NULL)
 {
 
 	dforest = attr(forest,"dforest")
@@ -234,7 +237,7 @@
 			features_cardinality = forestparam[[1]],
 			response_cardinality = forestparam[[2]],
 			bin_num = forestparam[[6]],
-			cp = cp)
+			cp = cp, min_split = min_split)
 		{
 
 			active_nodes = as.integer(active_nodes)
@@ -254,7 +257,7 @@
 			     }))
 			splits_info = .Call("computeSplits",hist, active_nodes, 
 				features_cardinality,response_cardinality,
-				bin_num, NULL, cp,
+				bin_num, NULL, cp, as.numeric(min_split),
 	       			PACKAGE = "HPdclassifier")
 			total_completed = matrix(attr(splits_info,"total_completed"),
 					nrow = 1)
@@ -268,8 +271,8 @@
 	total_completed = sum(getpartition(total_completed))
 	attr(splits_info,"total_completed") <- total_completed
 	active_nodes = as.vector(getpartition(active_nodes))
-	active_nodes = .Call("applySplits",forest,splits_info, active_nodes,
-	       PACKAGE = "HPdclassifier")
+	active_nodes = .Call("applySplits",forest,splits_info, active_nodes, 
+		     as.integer(max_depth), PACKAGE = "HPdclassifier")
 
 	timing_info <- Sys.time() - timing_info
 	if(trace)
@@ -532,6 +535,7 @@
 .predictOOB <- function(forest, observations, responses, oob_indices, 
 	    cutoff, classes, reduceModel = FALSE, trace)
 {
+
 	timing_info <- Sys.time()
 	oob_predictions = dframe(npartitions = npartitions(observations))
 	sse = darray(npartitions = npartitions(observations))
@@ -540,6 +544,7 @@
 	L1 = darray(npartitions = npartitions(observations))
 	L2 = darray(npartitions = npartitions(observations))
 	class_count = darray(npartitions = npartitions(observations))
+
 
 	dforest = forest
 	suppressWarnings({
@@ -881,7 +886,7 @@
 		print("computing splits from hists")
 		result = .computeHistogramsAndSplits(observations, 
 			   responses, forest, active_nodes,workers, max_nodes,
-			   cp, trace, hist)
+			   cp, min_split, max_depth = max_depth, trace, hist)
 
 		active_nodes = result[[2]]
 		splits_info = result[[1]]

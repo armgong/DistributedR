@@ -175,7 +175,6 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 	max_nodes_per_iteration = as.integer(floor(max_nodes_per_iteration))
 	nodes_per_executor = as.integer(floor(nodes_per_executor))
 
-
 	if(do.trace)
 		print(paste("threshold",
 			toString(threshold),sep=" = "))
@@ -256,7 +255,7 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 	return(model)
 }
 
-predict.hpdrpart <- function(model, newdata,do.trace = FALSE, ...)
+predict.hpdrpart <- function(model, newdata, do.trace = FALSE, ...)
 {
 	if(missing(newdata))
 		stop("'newdata' is a required argument")
@@ -278,6 +277,12 @@ predict.hpdrpart <- function(model, newdata,do.trace = FALSE, ...)
 			library(rpart)	
 			class(model) <- class(model)[-1]
 			args = c(list(object = model, newdata = newdata),args)
+			if(!is.element("type",names(args)))
+			{
+				args$type = "vector"
+				if(model$method == "gini")
+					args$type = "class"
+			}	
 			predictions = do.call(predict,args)
 			predictions = data.frame(predictions)
 			update(predictions)
@@ -301,9 +306,13 @@ predict.hpdrpart <- function(model, newdata,do.trace = FALSE, ...)
 	colnames(model) <- c("var", "n","wt","dev", "yval", "complexity")
 	rownames(model) <- leaf_ids
 	model <- cbind(model, ncompete = 0, nsurrogate = 0)
+	valid_splits <- complete.cases(splits)
+	splits <- splits[valid_splits,]
+	if(!is.matrix(splits))
+		splits <- matrix(splits,ncol = 5)
 	colnames(splits) <- c("count","ncat", "improve","index","adj")
-	rownames(splits) <- model$var 
-	splits <- splits[complete.cases(splits),]
+	rownames(splits) <- model$var[valid_splits]
+
 	csplit <- matrix(3-csplit,nrow = attr(csplit,"nrow"))
 	model <- list(frame = model, splits = splits, csplit = csplit)
 	return(model)
