@@ -210,13 +210,12 @@ SEXP printNode(hpdRFnode *tree, int depth, int max_depth, SEXP classes)
 	tab;
 	printf("num_obs: %d\n", tree->additional_info->num_obs);
 
-	
+	/*
 	tab;
 	printf("indices: ");
 	for(int i = 0; i < tree->additional_info->num_obs; i++)
 	  printf("%d ", tree->additional_info->indices[i]);
 	printf("\n");
-	/*
 	tab;
 	printf("weights: ");
 	for(int i = 0; i < tree->additional_info->num_obs; i++)
@@ -320,12 +319,12 @@ hpdRFnode* createChildNode(hpdRFnode* parent,
   if(parent != NULL)
     {
       child->treeID = parent->treeID;
-      child->additional_info->depth = parent->additional_info->depth;
+      child->additional_info->depth = parent->additional_info->depth+1;
       child->additional_info->parent = parent;
     }
   else
     {
-      child->additional_info->depth = 0;
+      child->additional_info->depth = 1;
       child->additional_info->parent = NULL;
       child->treeID = -1;
     }
@@ -355,13 +354,15 @@ void cleanSingleNode(hpdRFnode *node)
 }
 
 
-int countSubTree(hpdRFnode *tree)
+int countSubTree(hpdRFnode *tree, int remaining_depth)
 {
+  if(remaining_depth == 0)
+    return 0;
   int total = 1;
   if(tree->left != NULL)
-    total += countSubTree(tree->left);
+    total += countSubTree(tree->left, remaining_depth - 1);
   if(tree->right != NULL)
-    total += countSubTree(tree->right);
+    total += countSubTree(tree->right, remaining_depth - 1);
   return total;
 }
 
@@ -416,7 +417,8 @@ int convertTreetoRpart(hpdRFnode* tree, int* indices,
 		       double* yval, double* complexity,
 		       double* split_index, int* ncat, 
 		       int rowID, double parent_cp, int node_index,
-		       int* features_cardinality, int* csplit_count)
+		       int* features_cardinality, int* csplit_count,
+		       int current_depth, int max_depth)
 {
   indices[node_index] = rowID;
   var[node_index] = tree->split_criteria_length == 0? 0:tree->split_variable;
@@ -442,18 +444,20 @@ int convertTreetoRpart(hpdRFnode* tree, int* indices,
 
   parent_cp = complexity[node_index];
 
-  if(tree->left)
+  if(tree->left && current_depth < max_depth)
     node_index = convertTreetoRpart(tree->left, indices, var, dev,
 				    yval, complexity, split_index, ncat,
 				    rowID*2, parent_cp, 
 				    node_index+1, features_cardinality,
-				    csplit_count);
-  if(tree->right)
+				    csplit_count,current_depth+1,
+				    max_depth);
+  if(tree->right && current_depth < max_depth)
     node_index = convertTreetoRpart(tree->right, indices, var, dev,
 				    yval, complexity, split_index, ncat,
 				    rowID*2+1, parent_cp, 
 				    node_index+1, features_cardinality,
-				    csplit_count);
+				    csplit_count,current_depth+1,
+				    max_depth);
   return node_index;
 
 }

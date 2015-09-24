@@ -63,7 +63,7 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 	{
 		if(nrow(weights) != nrow(data))
 			stop("'weights' must have same number of rows as data") 
-		if(partitionsize(weights)[,1] != parititionsize(data)[,1])
+		if(!identical(partitionsize(weights)[,1],partitionsize(data)[,1]))
 			stop("'weights' must be partitioned similarly to data")
 	}
 
@@ -114,9 +114,16 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 		cutoff = 0
 
 
-
-
 	DR_status = distributedR_status()
+
+
+	if(missing(nExecutor))
+	{
+		dataset_size = nrow(observations)*ncol(observations)*8
+		dataset_size = dataset_size/1024/1024/1024 #dataset size in GB
+		dataset_size = max(as.integer(dataset_size),1)
+		nExecutor = min(dataset_size,sum(DR_status$Inst))
+	}
 
 	free_sh_mem = (DR_status$DarrayQuota - 
 		 DR_status$DarrayUsed)/
@@ -168,7 +175,6 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 	max_nodes_per_iteration = as.integer(floor(max_nodes_per_iteration))
 	nodes_per_executor = as.integer(floor(nodes_per_executor))
 
-
 	if(do.trace)
 		print(paste("threshold",
 			toString(threshold),sep=" = "))
@@ -180,7 +186,6 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 	if(do.trace)
 		print(paste("max_nodes_per_iteration",
 			toString(max_nodes_per_iteration),sep=" = "))
-
 
 	suppressWarnings({
 	tree <- .hpdRF_distributed(observations, responses, ntree = 1L, 
@@ -221,7 +226,8 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 	model$na.action = na.action
 	model$numresp = 0
 	model$numresp = length(classes)
-	model$classes = classes
+	attr(model,"ylevels") <- classes
+	model$nExecutor = nExecutor
 	class(model) <- c("hpdrpart","rpart")
 
 	if(is.data.frame(data))
@@ -249,7 +255,7 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 	return(model)
 }
 
-predict.hpdrpart <- function(model, newdata,do.trace = FALSE, ...)
+predict.hpdrpart <- function(model, newdata, do.trace = FALSE, ...)
 {
 	if(missing(newdata))
 		stop("'newdata' is a required argument")
@@ -271,14 +277,13 @@ predict.hpdrpart <- function(model, newdata,do.trace = FALSE, ...)
 			library(rpart)	
 			class(model) <- class(model)[-1]
 			args = c(list(object = model, newdata = newdata),args)
-			print(args)
+			if(!is.element("type",names(args)))
+			{
+				args$type = "vector"
+				if(model$method == "gini")
+					args$type = "class"
+			}	
 			predictions = do.call(predict,args)
-			print(predictions)
-	
-			if(model$method=="gini")
-			predictions = factor(model$classes[predictions], 
-				    levels = model$classes)
-			
 			predictions = data.frame(predictions)
 			update(predictions)
 		},progress = do.trace)
@@ -301,9 +306,13 @@ predict.hpdrpart <- function(model, newdata,do.trace = FALSE, ...)
 	colnames(model) <- c("var", "n","wt","dev", "yval", "complexity")
 	rownames(model) <- leaf_ids
 	model <- cbind(model, ncompete = 0, nsurrogate = 0)
+	valid_splits <- complete.cases(splits)
+	splits <- splits[valid_splits,]
+	if(!is.matrix(splits))
+		splits <- matrix(splits,ncol = 5)
 	colnames(splits) <- c("count","ncat", "improve","index","adj")
-	rownames(splits) <- model$var 
-	splits <- splits[complete.cases(splits),]
+	rownames(splits) <- model$var[valid_splits]
+
 	csplit <- matrix(3-csplit,nrow = attr(csplit,"nrow"))
 	model <- list(frame = model, splits = splits, csplit = csplit)
 	return(model)
@@ -311,35 +320,35 @@ predict.hpdrpart <- function(model, newdata,do.trace = FALSE, ...)
 
 deploy.hpdrpart <- function(model)
 {
-	if(is.null(model$frame))
+	if(!is.element("frame", names(model)))
 		stop("'model' does not have an element called 'frame'")
-	if(is.null(model$frame$var))
+	if(!is.element("var", names(model$frame)))
 		stop("'model$frame' does not have an element called 'var'")
-	if(is.null(model$frame$n))
+	if(!is.element("n", names(model$frame)))
 		stop("'model$frame' does not have an element called 'n'")
-	if(is.null(model$frame$wt))
+	if(!is.element("wt", names(model$frame)))
 		stop("'model$frame' does not have an element called 'wt'")
-	if(is.null(model$frame$dev))
+	if(!is.element("dev", names(model$frame)))
 		stop("'model$frame' does not have an element called 'dev'")
-	if(is.null(model$frame$yval))
+	if(!is.element("yval", names(model$frame)))
 		stop("'model$frame' does not have an element called 'yval'")
-	if(is.null(model$frame$complexity))
+	if(!is.element("complexity",names(model$frame)))
 		stop("'model$frame' does not have an element called 'complexity'")
 
-	if(is.null(model$splits))
+	if(!is.element("splits", names(model)))
 		stop("'model' does not have an element called 'splits'")
-	if(is.null(model$splits$count))
-		stop("'model$splits' does not have an element called 'count'")
-	if(is.null(model$splits$ncat))
-		stop("'model$splits' does not have an element called 'ncat'")
-	if(is.null(model$splits$improve))
-		stop("'model$splits' does not have an element called 'improve'")
-	if(is.null(model$splits$index))
-		stop("'model$splits' does not have an element called 'index'")
-	if(is.null(model$splits$adj))
-		stop("'model$splits' does not have an element called 'adj'")
+	if(!is.element("count", colnames(model$splits)))
+		stop("'model$splits' does not have column 'count'")
+	if(!is.element("ncat", colnames(model$splits)))
+		stop("'model$splits' does not have column 'ncat'")
+	if(!is.element("improve", colnames(model$splits)))
+		stop("'model$splits' does not have column 'improve'")
+	if(!is.element("index", colnames(model$splits)))
+		stop("'model$splits' does not have column 'index'")
+	if(!is.element("adj", colnames(model$splits)))
+		stop("'model$splits' does not have column 'adj'")
 
-	if(is.null(model$csplit))
+	if(!is.element("csplit", names(model)))
 		warning("'model' does not have an element called 'csplit'")
 	return(model)
 }
