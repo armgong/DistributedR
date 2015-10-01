@@ -63,6 +63,7 @@
 			replacement = TRUE,
 			max_nodes = Inf,
 			scale = 1L,
+			starting_depth = rep(1L, ntree),
 			trace = FALSE)
 {
 	timing_info <- Sys.time()
@@ -82,7 +83,7 @@
 	       as.numeric(features_max), 
 	       features_cardinality, response_cardinality, 
 	       features_num,null_weights,null_indices, as.integer(scale), max_nodes,
-	       as.integer(1:ntree),
+	       as.integer(1:ntree), starting_depth,
 	       PACKAGE = "HPdclassifier")
 
 
@@ -108,6 +109,7 @@
 			max_nodes = max_nodes,
 			replacement = replacement,
 			scale = scale,
+			starting_depth = starting_depth,
 			init_seed = sample.int(1000,i))
 		{
 			set.seed(init_seed)
@@ -149,6 +151,7 @@
 			       weights,observation_indices, 
 			       as.integer(scale), max_nodes,
 			       as.integer(1:ntree),
+			       starting_depth,
 	       		       PACKAGE = "HPdclassifier")
 			forest = list(.Call("serializeForest", dforest))
 			.Call("garbageCollectForest",dforest)
@@ -170,7 +173,7 @@
 .computeHistogramsAndSplits <- function(observations, responses, forest, 
 			    active_nodes, workers, max_nodes, cp = 1, 
 			    min_split = 1, max_depth = 10000, 
-			    trace = FALSE, hist = NULL)
+			    trace = FALSE, hist = NULL, summary_info = FALSE)
 {
 
 	dforest = attr(forest,"dforest")
@@ -227,6 +230,7 @@
 	print("computing splits")
 	timing_info <- Sys.time()	
 
+
 	foreach(i, 1:workers,
 		   function(splits_info = splits(splits_info,i),
 			data_partitions = npartitions(observations),
@@ -241,8 +245,8 @@
 		{
 
 			active_nodes = as.integer(active_nodes)
-			hist = lapply(1:length(hist[[1]]), function(i) 
-			     lapply(1:length(hist[[1]][[1]]), function(j)
+			hist = lapply(1:length(hist[[1]]), function(i) {
+			     node_hist <- lapply(1:length(hist[[1]][[1]]), function(j)
 			     {
 				indiv_hist = apply(sapply(1:length(hist), 
 				function(k)
@@ -254,7 +258,12 @@
 					sum(sapply(1:length(hist), function(k)
 					attr(hist[[k]][[i]][[j]],"L2")))
 				return(indiv_hist)
-			     }))
+			     })
+			     attr(node_hist,"n") <- sum(sapply(1:length(hist), function(k)
+			     			 attr(hist[[k]][[i]],"n")))
+			     return(node_hist)
+			     })
+
 			splits_info = .Call("computeSplits",hist, active_nodes, 
 				features_cardinality,response_cardinality,
 				bin_num, NULL, cp, as.numeric(min_split),
@@ -272,7 +281,7 @@
 	attr(splits_info,"total_completed") <- total_completed
 	active_nodes = as.vector(getpartition(active_nodes))
 	active_nodes = .Call("applySplits",forest,splits_info, active_nodes, 
-		     as.integer(max_depth), PACKAGE = "HPdclassifier")
+		     as.integer(max_depth), summary_info, PACKAGE = "HPdclassifier")
 
 	timing_info <- Sys.time() - timing_info
 	if(trace)
@@ -347,7 +356,8 @@
 	      nodes, max_nodes, node_size, tree_ids, 
 	      max_nodes_per_iteration, min_split, max_depth, 
  	      trace = FALSE,
-	      data_local=NULL)
+	      data_local=NULL,
+	      summary_info = FALSE)
 {
 	workers = length(nodes)
 
@@ -376,9 +386,11 @@
 			forest = .Call("unserializeForest",forest[[1]])
 			weights_local = .Call("getLeafWeights",forest);
 			observations_indices_local = .Call("getLeafIndices",forest);
+			starting_depth = .Call("getLeafDepths",forest)
 
 			loadData <- function(nodes, observations, responses, 
-				 weights_local, observations_indices_local)
+				 weights_local, observations_indices_local,
+				 starting_depth)
 		   	{
 
 			weights_local = weights_local[nodes]
@@ -401,7 +413,9 @@
 			local_data = list(observations_local=observations_local, 
 				   responses_local = responses_local, 
 				   weights_local = weights_local, 
-				   observations_indices_local = observations_indices_local)
+				   observations_indices_local = 
+				   	observations_indices_local,
+				   starting_depth = starting_depth[nodes])
 			return(local_data)
 			}
 
@@ -409,7 +423,8 @@
 				      observations = observations, 
 				      responses = responses, 
 				      weights_local = weights_local,
-				      observations_indices_local)
+				      observations_indices_local,
+				      starting_depth)
 			update(data_local)
 			.Call("garbageCollectForest",forest)
 			gc()			
@@ -446,7 +461,8 @@
 			hpdRF_local_forest = .hpdRF_local,
 			max_depth = max_depth,
 			min_split  = min_split,
-			random_seed = sample.int(1000,i))
+			random_seed = sample.int(1000,i),
+			summary_info = summary_info)
       {
 		set.seed(random_seed)
 		
@@ -458,6 +474,8 @@
 			      	   function(x) x$weights_local)
 		observations_indices_local = lapply(data_local, 
 				   function(x) x$observations_indices_local)
+		starting_depth = lapply(data_local, 
+				   function(x) x$starting_depth)
 		rm(data_local)
 
 
@@ -476,6 +494,7 @@
 		lapply(1:length(observations_indices_local[[1]]), function(i)
 			lapply(1:length(observations_indices_local), function(j)
 				observations_indices_local[[j]][[i]]))
+		starting_depth = as.integer(unlist(starting_depth))
 
 		observations_indices = lapply(observations_indices_local, 
 			function(obs_local) do.call(c,
@@ -498,9 +517,9 @@
 			tree_ids = as.integer(tree_ids), 
 			max_nodes_per_iteration = max_nodes_per_iteration,
 			min_split = min_split, max_depth = max_depth,
-			random_seed = random_seed)
+			starting_depth = starting_depth, random_seed = random_seed,
+			summary_info = summary_info)
 
-		
 		dforest = list(.Call("serializeForest",forest))
 		.Call("garbageCollectForest",forest)
 		update(dforest)
@@ -834,12 +853,12 @@
       replacement = TRUE, cutoff , classes, completeModel = FALSE, 
       max_nodes_per_iteration =  .Machine$integer.max, 
       trace = FALSE, features_min = NULL, features_max = NULL, scale = 1L, 
-      cp = 0, min_split = 1, max_depth = 10000 )
+      cp = 0, min_split = 1, max_depth = 10000, starting_depth = rep(1L,ntree),
+      summary_info = FALSE)
 {
 	gc()
 	workers = sum(distributedR_status()$Inst)
 	threshold = max(threshold, node_size)
-
 	if(trace)
 	print("computing feature min/max")
 	if(is.null(features_min) | is.null(features_min))
@@ -863,7 +882,7 @@
 	initparam = .initializeDForest(observations, responses, ntree, bin_max, 
 		features_min, features_max, features_cardinality,
 		response_cardinality, features_num, weights, 
-		replacement, max_nodes, scale, 
+		replacement, max_nodes, scale, starting_depth, 
 		trace)
 
 	forest = initparam$forest
@@ -886,7 +905,8 @@
 		print("computing splits from hists")
 		result = .computeHistogramsAndSplits(observations, 
 			   responses, forest, active_nodes,workers, max_nodes,
-			   cp, min_split, max_depth = max_depth, trace, hist)
+			   cp, min_split, max_depth = max_depth, trace, hist,
+			   summary_info)
 
 		active_nodes = result[[2]]
 		splits_info = result[[1]]
@@ -897,7 +917,9 @@
 			   forest, active_nodes, splits_info, 
 			   min_split, max_depth,trace)
 		leaf_attempted = .Call("getAttemptedNodes",forest)
-		active_nodes = which(leaf_nodes > threshold & leaf_attempted == 0)
+		depths = .Call("getLeafDepths",forest)
+		active_nodes = which(leaf_nodes > threshold & leaf_attempted == 0 &
+			     depths <= max_depth+1)
 		max_nodes = .Call("getMaxNodes", forest)
 		gc()
 	}
@@ -962,7 +984,8 @@
 				max_nodes_per_iteration,
 				min_split = min_split, max_depth = max_depth,
 				trace,
-				data_local)
+				data_local,
+				summary_info = summary_info)
 			gc()
 		}
 	}
@@ -980,8 +1003,9 @@
       node_size=1, weights=NULL, observation_indices=NULL, 
       features_min = NULL, features_max = NULL, max_nodes = Inf,
       tree_ids = NULL, max_nodes_per_iteration = .Machine$integer.max, 
-      max_time = -1, cp = 0, max_depth = 10000, min_split = 1,
-      trace = TRUE, random_seed = NULL)
+      max_time = -1, cp = 0, max_depth = 10000, min_split = 1, 
+      starting_depth = rep(1L, ntree), trace = TRUE, random_seed = NULL,
+      summary_info = FALSE)
 {
 	if(!is.null(random_seed))
 	set.seed(random_seed)
@@ -1017,13 +1041,16 @@
 	node_size = as.integer(node_size)
 	max_time  = as.integer(max_time)
 	random_seed = sample.int(10000,1)
+
 	forest = .Call("hpdRF_local",observations, responses, ntree, bin_max,
 			features_cardinality, response_cardinality,
 			features_num, node_size, weights, observation_indices,
 			features_min, features_max, max_nodes, tree_ids, 
 			max_nodes_per_iteration, trace, scale, max_time, 
 			as.numeric(cp), as.integer(max_depth), 
-			as.integer(min_split),as.integer(random_seed),
+			as.integer(min_split), starting_depth, 
+			as.integer(random_seed),
+			summary_info,
 			PACKAGE="HPdclassifier")
 
 	return(forest)
@@ -1093,7 +1120,7 @@
 					cutoff = rep(1/k,k)
 				cutoff = as.numeric(cutoff)
 				predictions = .Call("combineVotesClassification",
-					predictions, cutoff, k,
+					predictions, cutoff, 
 					PACKAGE = "HPdclassifier")
 				predictions = data.frame(factor(classes[predictions], 
 					levels = classes))

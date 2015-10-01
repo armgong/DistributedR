@@ -39,9 +39,6 @@
 #'                }
 #' @param delimiter Column separator. Example: delimiter='|'. By default delimiter is ','.
 #' @param commentCharacter Discard lines starting with this character. Leading spaces are ignored.
-#' @param fileType File type is determined automatically by the file extension.
-#'
-#'                 Users can use fileType to override it. Useful when files don't have extensions.
 #' @param hdfsConfigurationFile By default: \code{paste(system.file(package='hdfsconnector'),'/conf/hdfs.json',sep='')}.
 #'
 #'                              Options are:
@@ -61,14 +58,21 @@
 #'                                  "hdfsUser": "jorgem" \cr
 #'                                  \}
 #'
-#' TODO explain helper script to copy hdfsConfigurationFile to all nodes.
-#'
+#' @param skipHeader Treat first line as the CSV header and discard it.
 #' @return A distributed data frame representing the CSV file.
 #' @examples
 #' df <- csv2dframe(url=paste(system.file(package='HPdata'),'/tests/data/ex001.csv',sep=''), schema='a:int64,b:character')
 
-csv2dframe <- function(url, ...) {
-    options = list(...)
+csv2dframe <- function(url, schema, delimiter=',', commentCharacter='#', 
+                       hdfsConfigurationFile=paste(system.file(package='hdfsconnector'),'/conf/hdfs.json',sep=''),
+                       skipHeader=FALSE) {
+    options = list()
+    options['schema'] = schema
+    options['delimiter'] = delimiter
+    options['commentCharacter'] = commentCharacter
+    options['hdfsConfigurationFile'] = hdfsConfigurationFile
+    options['skipHeader'] = skipHeader
+
     options['fileType'] = 'csv'
     .ddc_read(url, options)
 #    tryCatch({
@@ -126,10 +130,7 @@ csv2dframe <- function(url, ...) {
 #'                }
 #'
 #' @param url File URL. Examples: '/tmp/file.orc', 'hdfs:///file.orc'.
-#' @param selectStripes ORC stripes to include. Stripes need to be consecutive.
-#' @param fileType File type is determined automatically by the file extension.
-#'
-#'                 Users can use fileType to override it. Useful when files don't have extensions.
+#' @param selectedStripes ORC stripes to include. Stripes need to be consecutive. If not specified defaults to all the stripes in the ORC file.
 #' @param hdfsConfigurationFile By default: \code{paste(system.file(package='hdfsconnector'),'/conf/hdfs.json',sep='')}.
 #'
 #'                              Options are:
@@ -153,8 +154,12 @@ csv2dframe <- function(url, ...) {
 #' df <- orc2dframe(url=paste(system.file(package='HPdata'),'/tests/data/TestOrcFile.test1.orc',sep=''))
 
 
-orc2dframe <- function(url, ...) {
-    options = list(...)
+orc2dframe <- function(url, selectedStripes='', 
+                       hdfsConfigurationFile=paste(system.file(package='hdfsconnector'),'/conf/hdfs.json',sep='')) {
+    options = list()
+    options['selectedStripes'] = selectedStripes
+    options['hdfsConfigurationFile'] = hdfsConfigurationFile
+
     options['fileType'] = 'orc'
     .ddc_read(url, options)
 }
@@ -170,13 +175,17 @@ orc2dframe <- function(url, ...) {
     # 1. Schedule file across workers. Handles globbing also.
     library(hdfsconnector)
     plan <- hdfsconnector::create_plan(url, options, pm$worker_map())
-    if (Sys.getenv('DEBUG_DDC') != '') {
-        print(plan)  # for debugging
-    }
 
     hdfsConfigurationStr <- paste(readLines(as.character(options["hdfsConfigurationFile"])),collapse='\n')
     for (i in 1:length(plan$configs)) {
         plan$configs[[i]]["hdfsConfigurationStr"] = hdfsConfigurationStr
+        if("skipHeader" %in% names(options)) {
+            plan$configs[[i]]["skipHeader"] = as.logical(options["skipHeader"])
+        }
+    }
+
+    if (Sys.getenv('DEBUG_DDC') != '') {
+        print(plan)  # for debugging
     }
 
     # set chunk_worker_map in master so dframe partitions are created on the right workers
@@ -208,7 +217,8 @@ orc2dframe <- function(url, ...) {
                                          chunkEnd=config$chunk_end,
                                          delimiter=config$delimiter,
                                          commentCharacter=config$comment_character,
-                                         hdfsConfigurationStr=config$hdfsConfigurationStr)
+                                         hdfsConfigurationStr=config$hdfsConfigurationStr,
+                                         skipHeader=config$skipHeader)
                     update(dhs)
                 }
                 else if (config$file_type == "orc") {
@@ -222,13 +232,15 @@ orc2dframe <- function(url, ...) {
                 }
             }
     )
-    # TODO catch error when nlines < nexecutors and return a darray with a single partition using:
-    # d <- dframe(numpartitions=1)
-    # read.csv('../ddc/test/data/ex002.csv',header=FALSE,col.names=c('a','b','c','d'))
 
     c <- NULL
     if("schema" %in% names(options)) {
+        # CSV
         c <- hdfsconnector::schema2colnames(as.character(options['schema']))
+    }
+    else if(as.character(options['fileType']) == 'orc') {
+        # ORC
+        c <- hdfsconnector::orccolnames(url, as.character(options['hdfsConfigurationFile']))
     }
     colnames(d) <- c;
     d # return dframe

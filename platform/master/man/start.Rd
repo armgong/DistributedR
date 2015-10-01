@@ -3,20 +3,20 @@
 
 \title{distributedR_start}
 \description{Starts distributedR in single-machine or cluster mode. By
-default, distributedR starts on the local machine with number of R instances
-equal to the number of CPU cores. For cluster mode, worker
+default, distributedR starts on the local machine with number of R executors
+equal to the number of physical cores. For cluster mode, worker
 details should be present in cluster_conf file. After successful distributedR_start call,
 the master address and port number is displayed. This value is useful when a user wants to
 reference log files in workers.}
 
 \usage{
-distributedR_start (inst = 0, mem=0, cluster_conf="", log=2)
+distributedR_start (executors = 0, mem=0, cluster_conf="", log=2)
 }
 \arguments{
 
-  \item{inst}{ number of R instances to launch at each worker. Default
-    value is zero and will automatically start R instances equal to the
-    number of CPU cores in each machine. This default value (zero) is
+  \item{executors}{ number of executors to launch at each worker. Default
+    value is zero and will automatically start executors equal to the
+    number of physical cores in each machine. This default value (zero) is
     ignored if Executors field is defined in cluster_conf file}
 
   \item{mem}{ allocated memory size of a worker node. The default
@@ -40,15 +40,29 @@ distributedR_start (inst = 0, mem=0, cluster_conf="", log=2)
       port number range that will be used by a worker.  This range
       should contain at least 2*(number of workers)+1 open ports.
 
-     The Executor field sets the number of R instances. If the value
-     is 0, the runtime will automatically start as many instances as the
-     number of cores in each machine.  SharedMemory determines the
+     The Executor field sets the number of R executors. If the value
+     is 0, the runtime will automatically start as many executors as the
+     number of physical cores in each machine.  SharedMemory determines the
      memory size assigned to each worker in MB. For the default value of 0, the runtime
      will automatically use the size of mounted shared memory region.
      Currently, memory constraints are not enforced.  
 
      An example configuration file is present in
-     /opt/hp/distributedR/conf/cluster_conf.xml}
+     (/path/to/distributedR)/conf/cluster_conf.xml
+
+     The distributedR_start function can fetch the cluster_conf file in multiple ways with
+     the priority as follows:
+
+     1. cluster_conf parameter specified in the distributedR_start function.
+
+     2. fetch cluster_conf file from DR_CLUSTER_CONF environment variable. This should contain 
+        complete path to the cluster configuration file.
+
+     3. Fetch cluster_conf file from (DISTRIBUTEDR_HOME)/conf/cluster_conf.xml. Here 
+        DISTRIBUTEDR_HOME is an environment variable holding path where 
+        DistributedR is installed.
+
+     4. Default path where DistributedR is installed.} 
 
    \item{log}{sets level of information generated in log files. 
     The four severity levels are: 0 (ERROR), 1 (WARNING), 2
@@ -63,6 +77,11 @@ distributedR_start (inst = 0, mem=0, cluster_conf="", log=2)
 
     Severity level 3 (DEBUG): verbose logging. Mainly 
     applicable for debugging.}
+
+   \item{inst}{deprecated. number of executors to launch at each worker. Default
+    value is zero and will automatically start executors equal to the
+    number of physical cores in each machine. This default value (zero) is
+    ignored if Executors field is defined in cluster_conf file}
 
 %  \item{presto_home}{ root path of Presto. If missing, the current
 %  directory is set as home directory. Relative paths will be resolved
@@ -98,7 +117,10 @@ each Worker node has its own log file. Normal execution log messages or Executor
 (depending on severity level chosen by user) are logged here. It is created in /tmp/ folder of each
 Worker node.
 
-Review the Master and Executor Master logs for complete exception details if an Executor exception is encountered.}
+Review the Master and Executor Master logs for complete exception details if an Executor exception is encountered.
+
+Argument 'inst' has been deprecated. Argument 'executors' should be used instead to      
+set the number of executors to be launched per worker.}
 
 \value{}
 
