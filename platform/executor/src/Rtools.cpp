@@ -17,8 +17,6 @@
  ********************************************************************/
 
 #include <malloc.h>
-#include <Rinternals.h>
-#include <Rcpp.h>
 
 #include <string>
 #include <utility>  // make_pair
