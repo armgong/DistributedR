@@ -101,21 +101,22 @@ double computeRegressionTreeStats(double* hist, int nbin, double* L0,
  */
 double computeClassificationTreeStats(double* hist, int nbin, 
 				      int classes, double* sum, 
-				      double* default_cost)
+				      double* default_cost,
+				      double* node_count)
 {
   double temp,max_count=0, prediction=0, sq = 0;
   for(int k = 0; k < classes; k++)
     {
-      temp = 0;
+      node_count[k] = 0;
       for(int i = 0; i < nbin; i ++)
-	temp += hist[nbin*k+i];
+	node_count[k] += hist[nbin*k+i];
 
-      *sum += temp;
-      sq += temp*temp;
-      if(temp > max_count)
+      *sum += node_count[k];
+      sq += node_count[k]*node_count[k];
+      if(node_count[k] > max_count)
 	{
 	  prediction = (double) k;
-	  max_count = temp;
+	  max_count = node_count[k];
 	}
     }
   *default_cost = 1-sq/(*sum)/(*sum);
@@ -409,13 +410,13 @@ extern "C"
 		     SEXP R_cp, SEXP R_min_count)
   {
 
-
     int* features_categorical = INTEGER(R_features_cardinality);
     int response_cardinality = INTEGER(R_response_cardinality)[0];
     bool response_categorical = response_cardinality != NA_INTEGER;
     int* bin_num = INTEGER(R_bin_num);
     SEXP splits_info;
     double cp = REAL(R_cp)[0];
+    double min_count = REAL(R_min_count)[0];
 
     PROTECT(splits_info = allocVector(VECSXP,length(R_active_nodes)));
     for(int i = 0; i < length(old_splits_info) && i <length(splits_info); i++)
@@ -428,11 +429,15 @@ extern "C"
 	*REAL(VECTOR_ELT(split_info,3)) = DBL_MAX;
 	*REAL(VECTOR_ELT(split_info,4)) = 0;
 	*REAL(VECTOR_ELT(split_info,5)) = DBL_MAX;
+	*REAL(VECTOR_ELT(split_info,6)) = 0;
+	*INTEGER(VECTOR_ELT(split_info,7)) = 0;
+	SET_VECTOR_ELT(split_info,8,R_NilValue);
+
       }
     for(int i = length(old_splits_info); i < length(R_active_nodes); i++)
       {
 	SEXP split_info;
-	PROTECT(split_info = allocVector(VECSXP,6));
+	PROTECT(split_info = allocVector(VECSXP,9));
 	SET_VECTOR_ELT(splits_info,i,split_info);
 	SET_VECTOR_ELT(split_info,0,ScalarInteger(0));
 	SET_VECTOR_ELT(split_info,1,R_NilValue);
@@ -440,10 +445,12 @@ extern "C"
 	SET_VECTOR_ELT(split_info,3,ScalarReal(DBL_MAX));
 	SET_VECTOR_ELT(split_info,4,ScalarReal(0));
 	SET_VECTOR_ELT(split_info,5,ScalarReal(DBL_MAX));
+	SET_VECTOR_ELT(split_info,6,ScalarReal(0));
+	SET_VECTOR_ELT(split_info,7,ScalarInteger(0));
+	SET_VECTOR_ELT(split_info,8,R_NilValue);
 	UNPROTECT(1);
       }
     
-
     int total_completed=0;
     for(int i = 0; i < length(R_active_nodes); i++)
       {
@@ -457,6 +464,8 @@ extern "C"
  	double default_cost;
 	int featureIndex = INTEGER(getAttrib(VECTOR_ELT(node_histograms,0),
 					     install("feature")))[0]-1;
+	SEXP node_count = R_NilValue;
+
 	if(!response_categorical)
 	  prediction = computeRegressionTreeStats(REAL(VECTOR_ELT(node_histograms,0)), 
 						  bin_num[featureIndex],
@@ -464,36 +473,47 @@ extern "C"
 						  &default_cost);
 	else
 	  {
+	    PROTECT(node_count = allocVector(REALSXP,response_cardinality));
 	    prediction = computeClassificationTreeStats(REAL(VECTOR_ELT(node_histograms,0)),
 							bin_num[featureIndex], 
 							response_cardinality, 
 							&L0,
-							&default_cost);
+							&default_cost,
+							REAL(node_count));
 	    prediction = prediction + 1;
+	    SET_VECTOR_ELT(split_info,8,node_count);
+	    UNPROTECT(1);
+ 
 	  }
 	*REAL(VECTOR_ELT(split_info,4)) = prediction;
 	int best_featureIndex = -1;
 	int best_split_length = 0;
 	int* best_split = NULL;
-
+	*REAL(VECTOR_ELT(split_info,3)) = default_cost;
+	*REAL(VECTOR_ELT(split_info,5)) = default_cost;
+	*REAL(VECTOR_ELT(split_info,6)) = L0;
+	*INTEGER(VECTOR_ELT(split_info,7)) = 
+	  INTEGER(getAttrib(node_histograms,install("n")))[0];
 	for(int feature = 0; feature < length(node_histograms); feature++)
 	  {
 	    SEXP histogram = VECTOR_ELT(node_histograms,feature);
 	    featureIndex = INTEGER(getAttrib(histogram,install("feature")))[0]-1;
 	    bool complete = false;
 	    double hist_cost = default_cost;
-	    *REAL(VECTOR_ELT(split_info,5)) = hist_cost;
 	    int curr_split_length;
 	    int* curr_split = computeSplit(histogram, 
 					   bin_num[featureIndex], 
 					   response_cardinality,
 					   &hist_cost, 
-					   features_categorical[featureIndex] != NA_INTEGER,
+					   features_categorical[featureIndex] 
+					   != NA_INTEGER,
 					   response_categorical, L0, L1, 
 					   &complete, &curr_split_length,
-					   cp, REAL(R_min_count)[0]);
+					   cp, min_count);
 	    if((complete && hist_cost < REAL(VECTOR_ELT(split_info,3))[0]) ||
-	       (complete && hist_cost == REAL(VECTOR_ELT(split_info,3))[0] && featureIndex > best_featureIndex))
+	       (complete && hist_cost == REAL(VECTOR_ELT(split_info,3))[0] && 
+		featureIndex > best_featureIndex &&
+		hist_cost < (1-cp)*default_cost))
 	      {
 		best_featureIndex = featureIndex;
 		*INTEGER(VECTOR_ELT(split_info,0)) = 1;
@@ -528,9 +548,10 @@ extern "C"
    @param R_forest - the forest 
    @param R_splits_info - list of best splits 
    @param R_active_nodes - which nodes to update in the forest
+   @param R_max_depth - what is the maximum depth allowed for registering split
    */
   SEXP applySplits(SEXP R_forest, SEXP R_splits_info, SEXP R_active_nodes, 
-		   SEXP R_max_depth)
+		   SEXP R_max_depth, SEXP R_summary_info)
   {
     hpdRFforest *forest = (hpdRFforest *) R_ExternalPtrAddr(R_forest);
     double min, max;
@@ -540,6 +561,7 @@ extern "C"
     int num_new_active_nodes=0;
     int* max_nodes = forest->max_nodes;
     int max_depth = INTEGER(R_max_depth)[0];
+    bool summary_info = LOGICAL(R_summary_info)[0];
     for(int i = 0; i < length(R_active_nodes) && i < length(R_splits_info); i++)
       {
 	int active_node = INTEGER(R_active_nodes)[i]-1;
@@ -550,13 +572,43 @@ extern "C"
 	int tree_id = node_curr->treeID-1;
 	node_curr->prediction = 
 	  *REAL(VECTOR_ELT(VECTOR_ELT(R_splits_info,i),4));
-	node_curr->complexity = 
-	  REAL(VECTOR_ELT(VECTOR_ELT(R_splits_info,i),3))[0];
-	node_curr->deviance = 
-	  REAL(VECTOR_ELT(VECTOR_ELT(R_splits_info,i),5))[0];
-	node_curr->complexity = (node_curr->deviance-node_curr->complexity)/
-	  node_curr->deviance;
+	if(summary_info)
+	  {
+	    if(!node_curr->summary_info)
+	      node_curr->summary_info = (hpdRFSummaryInfo*) 
+		malloc(sizeof(hpdRFSummaryInfo));
 
+	    if(forest->response_cardinality != NA_INTEGER)
+	      {
+		node_curr->summary_info->node_counts_length = 
+		  forest->response_cardinality;
+		node_curr->summary_info->node_counts = (double *)
+		  malloc(sizeof(double)* forest->response_cardinality);
+		memcpy(node_curr->summary_info->node_counts,
+		       REAL(VECTOR_ELT(VECTOR_ELT(R_splits_info,i),8)),
+		       sizeof(double)*forest->response_cardinality);
+	      }
+	    else
+	      {
+		node_curr->summary_info->node_counts_length = 0;
+		node_curr->summary_info->node_counts = NULL;
+	      }
+	    node_curr->summary_info->complexity = 
+	      REAL(VECTOR_ELT(VECTOR_ELT(R_splits_info,i),3))[0];
+	    node_curr->summary_info->deviance = 
+	      REAL(VECTOR_ELT(VECTOR_ELT(R_splits_info,i),5))[0];
+	    if(node_curr->summary_info->deviance != 0)
+	    node_curr->summary_info->complexity = 
+	      (node_curr->summary_info->deviance-
+	       node_curr->summary_info->complexity)/
+	      node_curr->summary_info->deviance;
+	    else
+	      node_curr->summary_info->complexity = 1;
+	    node_curr->summary_info->n = 
+	      INTEGER(VECTOR_ELT(VECTOR_ELT(R_splits_info,i),7))[0];
+	    node_curr->summary_info->wt = 
+	      REAL(VECTOR_ELT(VECTOR_ELT(R_splits_info,i),6))[0];
+	  }
 
 	SEXP R_split_criteria = VECTOR_ELT(VECTOR_ELT(R_splits_info,i),2);
 	if(R_split_criteria != R_NilValue && 

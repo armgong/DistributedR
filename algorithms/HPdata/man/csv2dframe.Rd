@@ -4,7 +4,9 @@
 \alias{csv2dframe}
 \title{Load a CSV file into a distributed data frame.}
 \usage{
-csv2dframe(url, ...)
+csv2dframe(url, schema, delimiter = ",", commentCharacter = "#",
+  hdfsConfigurationFile = paste(system.file(package = "hdfsconnector"),
+  "/conf/hdfs.json", sep = ""), skipHeader = FALSE)
 }
 \arguments{
 \item{url}{File URL. Examples: '/tmp/file.csv', 'hdfs:///file.csv'.
@@ -37,10 +39,6 @@ csv2dframe(url, ...)
 
 \item{commentCharacter}{Discard lines starting with this character. Leading spaces are ignored.}
 
-\item{fileType}{File type is determined automatically by the file extension.
-
-                Users can use fileType to override it. Useful when files don't have extensions.}
-
 \item{hdfsConfigurationFile}{By default: \code{paste(system.file(package='hdfsconnector'),'/conf/hdfs.json',sep='')}.
 
                              Options are:
@@ -58,9 +56,9 @@ csv2dframe(url, ...)
                                  "hdfsPort": 9000, \cr
                                  "hdfsHost": "172.17.0.3", \cr
                                  "hdfsUser": "jorgem" \cr
-                                 \}
+                                 \}}
 
-TODO explain helper script to copy hdfsConfigurationFile to all nodes.}
+\item{skipHeader}{Treat first line as the CSV header and discard it.}
 }
 \value{
 A distributed data frame representing the CSV file.

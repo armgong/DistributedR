@@ -48,6 +48,10 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 		stop("'data' is a required argument")
 	if(!is.dframe(data) & !is.data.frame(data))
 		stop("'data' must be a dframe or data.frame")
+	if(nrow(data) <= 0)
+		stop("'data' must have a positive number of rows")
+	if(ncol(data) <= 0)
+		stop("'data' must have a positive number of columns")
 	if(is.dframe(data) & !is.dframe(weights) & !is.null(weights))
 		stop("'weights' must be same type as data")
 	if(is.data.frame(data) & !is.data.frame(weights) & !is.null(weights))
@@ -99,6 +103,10 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 	xlevels = variables$x_classes
 	x_colnames = variables$x_colnames
 	weights = variables$weights
+
+	if(nrow(observations) <= 0)
+		stop("all observations eliminated after parsing formula and applying na.action")
+
 	if(length(classes) > 0)
 		classes = classes[[1]]
 	else
@@ -201,15 +209,16 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 	     max_nodes_per_iteration = max_nodes_per_iteration,
 	     trace = do.trace, features_min = NULL, features_max = NULL,
 	     min_split = control$minbucket, max_depth = control$maxdepth, 
-	     cp = control$cp)
+	     cp = control$cp, summary_info = TRUE)
 	})
-
+	.Call("simplifyForest",tree$forest)
 	if(keep.model)
 	{	     
 		if(do.trace)
 		print("converting to rpart model")
 		timing_info <- Sys.time()
-		model = .convertToRpartModel(tree$forest, x_colnames)
+		model = .convertToRpartModel(tree$forest, x_colnames, 
+		      length(classes), nrow(observations))
 		timing_info <- Sys.time() - timing_info
 		if(do.trace )
 		print(timing_info)
@@ -220,7 +229,7 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 	if(is.na(response_cardinality))
 		model$method = "anova"
 	if(!is.na(response_cardinality))
-		model$method = "gini"
+		model$method = "class"
 	model$control = control
 	model$params = params
 	model$na.action = na.action
@@ -232,7 +241,12 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 
 	if(is.data.frame(data))
 		responses = getpartition(responses)
-
+	
+	variable.importance = cbind(data.frame(var = rownames(model$splits)),
+			    data.frame(improve =model$splits[,"improve"]))
+	variable.importance <- aggregate(improve ~ var, variable.importance, sum)
+	rownames(variable.importance) <- variable.importance$var
+	variable.importance$var <- NULL
 	if(completeModel)
 	{
 		if(do.trace)
@@ -257,58 +271,94 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 
 predict.hpdrpart <- function(model, newdata, do.trace = FALSE, ...)
 {
+	if(!inherits(model,"hpdrpart"))
+		stop("method is only for hpdrpart objects")
+	if(!inherits(model,"rpart"))
+		stop("model must inherit from rpart object")
+
 	if(missing(newdata))
 		stop("'newdata' is a required argument")
 	if(!is.dframe(newdata) & !is.data.frame(newdata))
 		stop("'newdata' must be a dframe or data.frame")
-	was.data.frame = is.data.frame(newdata)
-	if(is.data.frame(newdata))
-		newdata = as.dframe(newdata)
-	if(attr(newdata,"npartitions")[2] > 1)
-		stop("'newdata' must be partitioned rowise")
 
-	predictions = dframe(npartitions = npartitions(newdata))
-	foreach(i,1:npartitions(newdata),
-		function(model=model, 
-			newdata = splits(newdata,i), 
-			predictions = splits(predictions,i),
-			args = list(...))
-		{
-			library(rpart)	
-			class(model) <- class(model)[-1]
-			args = c(list(object = model, newdata = newdata),args)
-			if(!is.element("type",names(args)))
+	if(nrow(newdata) <= 0)
+		stop("'newdata' must have a positive number of rows")
+	if(ncol(newdata) <= 0)
+		stop("'newdata' must have a positive number of columns")
+
+	if(is.dframe(newdata))
+	{
+		if(attr(newdata,"npartitions")[2] > 1)
+			stop("'newdata' must be partitioned rowise")
+
+		predictions = dframe(npartitions = npartitions(newdata))
+		foreach(i,1:npartitions(newdata),
+			function(model=model, 
+				newdata = splits(newdata,i), 
+				predictions = splits(predictions,i),
+				args = list(...))
 			{
-				args$type = "vector"
-				if(model$method == "gini")
-					args$type = "class"
-			}	
-			predictions = do.call(predict,args)
-			predictions = data.frame(predictions)
-			update(predictions)
-		},progress = do.trace)
-	if(was.data.frame)
-		predictions = getpartition(predictions)
+				library(rpart)	
+				class(model) <- class(model)[class(model) != "hpdrpart"]
+				args = c(list(object = model, newdata = newdata),args)
+				if(!is.element("type",names(args)))
+				{
+					args$type = "vector"
+					if(model$method == "gini")
+						args$type = "class"
+				}	
+				predictions = do.call(predict,args)
+				predictions = data.frame(predictions)
+				update(predictions)
+			},progress = do.trace)
+	}
+	if(is.data.frame(newdata))
+	{	
+		args = list(...)
+		old_class <- class(model)
+		class(model) <- "rpart"
+		args = c(list(object = model, newdata = newdata),args)
+		if(!is.element("type",names(args)))
+		{
+			args$type = "vector"
+			if(model$method == "gini")
+				args$type = "class"
+		}	
+		predictions = do.call(predict,args)
+		predictions = data.frame(predictions)
+		class(model) <- old_class
+	}
 	return(predictions)
 }
 
-.convertToRpartModel <- function(tree, varnames)
+.convertToRpartModel <- function(tree, varnames, nClasses, n)
 {
 	model <- .Call("rpartModel",tree)
-	csplit <- model[[8]]
-	splits <- cbind(count = 0, model[[7]], improve = 0, model[[6]],adj = 0)
-	model[[8]] <- NULL
+	csplit <- model[[11]]
+	splits <- cbind(count = model[[6]],model[[9]],
+	       improve = model[[10]], model[[8]],adj = 0)
 	varnames = c("<leaf>", varnames)
 	model[[2]] = varnames[model[[2]]+1]
 	leaf_ids = model[[1]]
-	model = data.frame(var = model[[2]], n = 0, wt = 0, 
-	      dev = model[[3]], yval = model[[4]], complexity = model[[5]])
+	yval2 = NULL
+	if(!is.null(model[[12]]))
+	{
+		node_counts = matrix(model[[12]],ncol = nClasses)
+		node_ratio = apply(node_counts,2,function(x) x/sum(x))
+		node_prob = rowSums(node_counts)/n
+		yval2 = cbind(matrix(model[[4]]),node_counts, node_ratio, node_prob)
+		colnames(yval2) <- c(paste("yval2.V",1:7,sep = ""),"yval2.nodeprob")
+	}
+	model = data.frame(var = model[[2]], n = model[[6]], wt = model[[7]], 
+	      dev = model[[3]], yval = matrix(model[[4]]), complexity = model[[5]])
 	colnames(model) <- c("var", "n","wt","dev", "yval", "complexity")
+	if(!is.null(yval2))
+		model = cbind(model,yval2)
 	rownames(model) <- leaf_ids
 	model <- cbind(model, ncompete = 0, nsurrogate = 0)
 	valid_splits <- complete.cases(splits)
 	splits <- splits[valid_splits,]
-	if(!is.matrix(splits))
+	if(!is.matrix(splits))  n[node_index] = tree->summary_info->n;
 		splits <- matrix(splits,ncol = 5)
 	colnames(splits) <- c("count","ncat", "improve","index","adj")
 	rownames(splits) <- model$var[valid_splits]

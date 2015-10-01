@@ -225,7 +225,9 @@ head.darray <- function(x, n=6L,...){
               if(n<0){
 		  n <- dim(x)[1]+n
               }
-              if(n<=0) return (0)
+              if(n<=0){
+      		return (array(0,dim=c(0,ncol(x)), dimnames=dimnames(x)))
+	      }
 
               #Define function that can return a subset of lines from a split
               headOfSplit <- function(x, id, nlines, bsize){
@@ -287,7 +289,11 @@ tail.darray <- function(x, n=6L,...) {
                   n <- dim(x)[1]+n
               }
               if(n<0) stop ("no. rows to be skipped is larger than array extent")
-              if(n==0) return (0)
+              if(n==0){
+	        #Match the behavior to standard R
+	        if(length(rownames(x))==0) return (tail(array(0,dim=c(1,1)),0))
+		return (array(0,dim=c(0,ncol(x)), dimnames=dimnames(x)))
+	       }
 
               #Define function to fetch subset of the partition data
               tailOfSplit <- function(x, id, nlines, bsize){
@@ -328,9 +334,12 @@ tail.darray <- function(x, n=6L,...) {
                   nprocessed <- nprocessed+nrow(temp)
               }
   
-              if(!is.null(dimnames(x)[[1]]) && length(dimnames(x)[[1]]) != 0 && length(dimnames(x)[[1]]) == nrow(res)) {
-                 rownames(res) <- dimnames(x)[[1]]
-              }   
+              if(!is.null(dimnames(x)[[1]]) && length(dimnames(x)[[1]]) != 0 && length(dimnames(x)[[1]]) >= nrow(x)) {
+                 rownames(res) <- dimnames(x)[[1]][(length(dimnames(x)[[1]])-nrow(res)+1):length(dimnames(x)[[1]])]
+              } else {
+  	         rownames(res) <- ((nrow(x)-nrow(res)+1):nrow(x))
+	      }  
+
               if(!is.null(dimnames(x)[[2]]) && length(dimnames(x)[[2]]) != 0 && length(dimnames(x)[[2]]) == ncol(res)) {
                  colnames(res) <- dimnames(x)[[2]]
               }
@@ -342,19 +351,8 @@ tail.darray <- function(x, n=6L,...) {
 # Darrays can initially be empty or flexible sized. Just returning the number of rows declared in the dframe dimensions is not a good.
 setMethod("nrow", signature("darray"), function(x)
     {
-        #Data may be block partitioned. We only need to look at the leftmost partitions.
-        nc<-ceiling(x@dim[2]/x@blocks[2])
-        nr<-ceiling(x@dim[1]/x@blocks[1])
-        temp <- darray(dim=c(nr,1), blocks=c(1,1), sparse=FALSE)
-        #Generate index numbers for the leftmost partitions.
-        lparts<-seq(1,npartitions(x),nc)
-        foreach(i,1:npartitions(temp),
-              localnrow <- function(v=splits(x,lparts[i]),res=splits(temp,i)) {
-                  res <- matrix(nrow(v))
-                  update(res)
-              }, progress=FALSE)
-        res <- getpartition(temp)
-        return(sum(as.numeric(res)))
+        rowPartitions <- seq(1,npartitions(x),by=x@npartitions[[2]])
+        sum(partitionsize(x)[rowPartitions,1])
     })
 
 setMethod("NROW", signature("darray"), function(x)
@@ -365,18 +363,8 @@ setMethod("NROW", signature("darray"), function(x)
 # Darrays can initially be empty or flexible sized. Just returning the number of cols declared in the dframe dimensions is not a good.
 setMethod("ncol", signature("darray"), function(x)
     {
-        #Data may be block partitioned. We only need to look at first row of partitions, i.e., first set of partitions from left to right
-        nc<-ceiling(x@dim[2]/x@blocks[2])
-        nr<-ceiling(x@dim[1]/x@blocks[1])
-        temp <- darray(dim=c(nc,1), blocks=c(1,1), sparse=FALSE)
-        #Generate index numbers for the topmost row of partitions.
-        foreach(i,1:npartitions(temp),
-              localnrow <- function(v=splits(x,i),res=splits(temp,i)) {
-                  res <- matrix(ncol(v))
-                  update(res)
-              }, progress=FALSE)
-        res <- getpartition(temp)
-        return(sum(as.numeric(res)))
+        colPartitions <- seq(1,x@npartitions[[2]])
+        sum(partitionsize(x)[colPartitions,2])
     })
 
 setMethod("NCOL", signature("darray"), function(x)
