@@ -210,8 +210,8 @@ hpdrandomForest <- hpdRF_parallelTree <- function(formula, data,
 	#limit 20% of free_mem and free_sh_mem to book keeping
 	max_rows_per_partition = max(partitionsize(responses)[,1])
 	max_trees_per_iteration = as.integer(floor(min(10000,ntree, 
-				0.5*free_mem/max_rows_per_partition,
-				0.5*free_sh_mem/max_rows_per_partition)))
+				0.05*free_mem/max_rows_per_partition,
+				0.05*free_sh_mem/max_rows_per_partition)))
 
 	#limit 25% of free_mem and free_sh_mem to building histograms
 	max_nodes_per_iteration = as.integer(floor(min(10000,
@@ -338,16 +338,18 @@ hpdrandomForest <- hpdRF_parallelTree <- function(formula, data,
 		if(do.trace)
 		print("distributeding forest")
 		timing_info <- Sys.time()
-		forest = .distributeForest(model$forest)
+		temp_forest = .distributeForest(model$forest)
 		if(do.trace)
 		print(Sys.time() - timing_info)
 		gc()
 		forest <- .combineDistributedForests(forest,temp_forest)
 		curr_ntree = as.integer(curr_ntree - min(ntree,max_trees_per_iteration))
-
+		suppressWarnings({
 		forest <- .redistributeForest(forest,
-	       	       split(1:(ntree-curr_ntree),1:sum(distributedR_status()$Inst)))
-
+	       	       split(1:(ntree-curr_ntree),
+				1:min(sum(distributedR_status()$Inst)),
+				ntree-curr_ntree))
+		})
 		rm(model)
 		gc()
 	}

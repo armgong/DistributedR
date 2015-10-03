@@ -72,9 +72,24 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 	}
 
 	keep.model = model
+	if(!is.numeric(nBins))
+		stop("nBins must be an integer")
 	nBins = as.integer(nBins)
 	if(nBins <= 0)
 		stop("'nBins' must be more than 0")
+
+	if(control$maxdepth > 30)
+		stop("'control$maxdepth' must be <= 30 for rpart models")
+	if(control$maxdepth <= 0)
+		stop("'control$maxdepth' must be a positive number")
+
+	if(control$cp > 1 || control$cp <= 0)
+		stop("'control$cp' must be in interval (0,1]")
+	if(control$minsplit <= 0)
+		stop("'control$minsplit' must be positive")
+	if(control$minbucket <= 0)
+		stop("'control$minbucket' must be positive")
+
 
 	tryCatch({
 	test_formula <- data.frame(matrix(0,0,ncol(data)))
@@ -236,6 +251,12 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 	model$numresp = 0
 	model$numresp = length(classes)
 	attr(model,"ylevels") <- classes
+	attr(model,"xlevels") <- levels.dframe(data)
+	categorical_features <- attr(model,"xlevels")$columns
+	attr(model,"xlevels")$columns <- NULL
+	attr(model,"xlevels") <- attr(model,"xlevels")$Levels
+	names(attr(model,"xlevels")) <- 
+		sapply(categorical_features, function(i) colnames(data)[i])
 	model$nExecutor = nExecutor
 	class(model) <- c("hpdrpart","rpart")
 
@@ -247,6 +268,7 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 	variable.importance <- aggregate(improve ~ var, variable.importance, sum)
 	rownames(variable.importance) <- variable.importance$var
 	variable.importance$var <- NULL
+	
 	if(completeModel)
 	{
 		if(do.trace)
@@ -315,18 +337,17 @@ predict.hpdrpart <- function(model, newdata, do.trace = FALSE, ...)
 	if(is.data.frame(newdata))
 	{	
 		args = list(...)
-		old_class <- class(model)
-		class(model) <- "rpart"
+		class(model) <- c("rpart",class(model))
 		args = c(list(object = model, newdata = newdata),args)
 		if(!is.element("type",names(args)))
 		{
 			args$type = "vector"
-			if(model$method == "gini")
+			if(model$method == "gini" || model$method == "class")
 				args$type = "class"
 		}	
 		predictions = do.call(predict,args)
 		predictions = data.frame(predictions)
-		class(model) <- old_class
+		class(model) <- class(model)[-1]
 	}
 	return(predictions)
 }
@@ -347,7 +368,8 @@ predict.hpdrpart <- function(model, newdata, do.trace = FALSE, ...)
 		node_ratio = apply(node_counts,2,function(x) x/sum(x))
 		node_prob = rowSums(node_counts)/n
 		yval2 = cbind(matrix(model[[4]]),node_counts, node_ratio, node_prob)
-		colnames(yval2) <- c(paste("yval2.V",1:7,sep = ""),"yval2.nodeprob")
+		colnames(yval2) <- c(paste("yval2.V",1:(2*nClasses+1),sep = ""),
+				"yval2.nodeprob")
 	}
 	model = data.frame(var = model[[2]], n = model[[6]], wt = model[[7]], 
 	      dev = model[[3]], yval = matrix(model[[4]]), complexity = model[[5]])
