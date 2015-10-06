@@ -1,7 +1,26 @@
 library(HPdclassifier)
 library(rpart)
-
 nInst <- sum(distributedR_status()$Inst)
+
+
+#generateData is a function that will output a dframe with nrow, ncol, npartitions
+#The columns of the dframe will be either categorical or numerical 
+#depending upon the value of features_categorical data
+#The response variable will be either categorical or numerical 
+#depending upon the value of the response_categorical
+
+#The features are numbers from 1:3 sampled randomly 
+#The output is the max of the features
+#The features are then cast as categories if necessary
+#The response is then cast as a category if necessary
+
+#This means that using generateData we can have regression, binary, multiclass testing
+#For regression testing, response_categorical = FALSE
+#For binary testing, response_categorical = FALSE, ncol = 2
+#For multiclass testing, response_categorical = FALSE, ncol > 2
+
+#Output dframe has columns X1:X<ncol> with X1 being response
+
 generateData <- function(nrow, ncol, 
 	     features_categorical, response_categorical, 
 	     npartitions = nInst)
@@ -73,7 +92,7 @@ expect_error(hpdrpart(X1 ~ .),
 expect_error(hpdrpart(X1 ~ .,data = matrix(1:9,3,3)),
 				   "'data' must be a dframe or data.frame")
 expect_error(hpdrpart(X1 ~ .,data = dframe(npartitions = c(1,2))),
-				   "'data' must be partitioned rowise")
+				   "'data' must have a positive number of rows")
 
 })
 
@@ -99,21 +118,21 @@ expect_warning(hpdrpart(X1 ~ .,data = data, subset = 0),
 })
 
 
-context("Invalid Inputs to Predict Function")
+context("Invalid Inputs to Predict Function of hpdrpart")
 model <- hpdrpart(X1 ~ ., data = data)
 test_that("invalid newdata input to predict function",{
 expect_error(predict(model), "'newdata' is a required argument")
 expect_error(predict(model,newdata = matrix(1:9,3,3)),
 				   "'newdata' must be a dframe or data.frame")
 expect_error(predict(model,newdata = dframe(npartitions = c(1,2))),
-				   "'newdata' must be partitioned rowise")
+				   "'newdata' must have a positive number of rows")
 })
 
 
-context("Validating Outputs of Training Function")
+context("Validating Outputs of Training Function for hpdrpart")
 test_that("testing output for categorical trees", {
 data = generateData(100,2,TRUE,TRUE)
-model <- hpdrpart(X1 ~ ., data = data)
+model <- hpdrpart(X1 ~ ., data = data, completeModel = TRUE)
 
 expect_true("frame" %in% names(model))
 expect_true("splits" %in% names(model))
@@ -128,7 +147,7 @@ expect_true("control" %in% names(model))
 
 test_that("testing output for numerical trees", {
 data = generateData(100,2,FALSE,FALSE)
-model <- hpdrpart(X1 ~ ., data = data)
+model <- hpdrpart(X1 ~ ., data = data, completeModel = TRUE)
 
 expect_true("frame" %in% names(model))
 expect_true("splits" %in% names(model))
@@ -142,47 +161,135 @@ expect_true("control" %in% names(model))
 
 
 
-context("Accuracy Results for Training Simple Models") 
-test_that("basic training with categorical/categorical", {
+context("Accuracy Results for Training Simple Models for hpdrpart") 
+test_that("basic training with categorical features and categorical output", {
+#Building a classification tree with categorical variables
 set.seed(1)
 data = generateData(1000,2,TRUE,TRUE)
 model <- hpdrpart(X1 ~ ., data = data)
-
-predictions = predict(model, data)
+data <- generateData(1000,2,TRUE,TRUE)
+predictions = predict(model, data, type = "class")
 predictions = getpartition(predictions)$predictions
 responses = getpartition(data)$X1
 expect_equal(predictions,responses)
 })
 
-test_that("basic training with numeric/categorical", {
+test_that("basic training with numeric features and categorical output", {
+#Building a classification tree with numeric features
 set.seed(1)
 data = generateData(1000,2,FALSE,TRUE)
 model <- hpdrpart(X1 ~ ., data = data)
-
-predictions = predict(model, data)
+data <- generateData(1000,2,FALSE,TRUE)
+predictions = predict(model, data,type = "class")
 predictions = getpartition(predictions)$predictions
 responses = getpartition(data)$X1
 expect_equal(predictions,responses)
 })
 
-test_that("basic training with categorical/numeric", {
+test_that("basic training with categorical features and numeric output", {
+#Building a regression tree from categorical variables
 set.seed(1)
 data = generateData(1000,2,TRUE,FALSE)
 model <- hpdrpart(X1 ~ ., data = data)
-
+data <-generateData(1000,2,TRUE,FALSE)
 predictions = predict(model, data)
 predictions = getpartition(predictions)$predictions
 responses = getpartition(data)$X1
 expect_equal(predictions,responses)
 })
 
-test_that("basic training with numeric/numeric", {
+test_that("basic training with numeric features and numeric output", {
+#Building a regression tree from numeric features
 set.seed(1)
 data = generateData(1000,2,FALSE,FALSE)
 model <- hpdrpart(X1 ~ ., data = data)
-
+data <- generateData(1000,2,FALSE,FALSE)
 predictions = predict(model, data)
 predictions = getpartition(predictions)$predictions
 responses = getpartition(data)$X1
 expect_equal(predictions,responses)
+})
+
+context("Testing deploy.hpdrpart function")
+expect_no_error <- function(x) {
+expect_that(x,not(throws_error()))
+expect_that(x,not(gives_warning()))
+}
+
+test_that("testing valid rpart model", {
+model <- rpart(Species ~ ., iris)
+expect_no_error(deploy.hpdrpart(model))
+})
+
+test_that("testing invalid rpart models", {
+model <- rpart(Species ~ ., iris)
+model$frame <- NULL
+expect_error(deploy.hpdrpart(model), 
+	"'model' does not have an element called 'frame'",fixed = TRUE)
+
+model <- rpart(Species ~ ., iris)
+model$frame$var <- NULL
+expect_error(deploy.hpdrpart(model), 
+	"'model$frame' does not have an element called 'var'",fixed = TRUE)
+
+model <- rpart(Species ~ ., iris)
+model$frame$n <- NULL
+expect_error(deploy.hpdrpart(model), 
+	"'model$frame' does not have an element called 'n'",fixed = TRUE)
+
+model <- rpart(Species ~ ., iris)
+model$frame$wt <- NULL
+expect_error(deploy.hpdrpart(model), 
+	"'model$frame' does not have an element called 'wt'",fixed = TRUE)
+
+model <- rpart(Species ~ ., iris)
+model$frame$dev <- NULL
+expect_error(deploy.hpdrpart(model), 
+	"'model$frame' does not have an element called 'dev'",fixed = TRUE)
+
+model <- rpart(Species ~ ., iris)
+model$frame$yval <- NULL
+expect_error(deploy.hpdrpart(model), 
+	"'model$frame' does not have an element called 'yval'",fixed = TRUE)
+
+model <- rpart(Species ~ ., iris)
+model$frame$complexity <- NULL
+expect_error(deploy.hpdrpart(model), 
+	"'model$frame' does not have an element called 'complexity'",fixed = TRUE)
+
+model <- rpart(Species ~ ., iris)
+model$splits <- NULL
+expect_error(deploy.hpdrpart(model), 
+	"'model' does not have an element called 'splits'",fixed = TRUE)
+
+model <- rpart(Species ~ ., iris)
+model$splits <- model$splits[,colnames(model$splits) != "count"] 
+expect_error(deploy.hpdrpart(model), 
+	"'model$splits' does not have column 'count'",fixed = TRUE)
+
+model <- rpart(Species ~ ., iris)
+model$splits <- model$splits[,colnames(model$splits) != "ncat"] 
+expect_error(deploy.hpdrpart(model), 
+	"'model$splits' does not have column 'ncat'",fixed = TRUE)
+
+model <- rpart(Species ~ ., iris)
+model$splits <- model$splits[,colnames(model$splits) != "improve"] 
+expect_error(deploy.hpdrpart(model), 
+	"'model$splits' does not have column 'improve'",fixed = TRUE)
+
+model <- rpart(Species ~ ., iris)
+model$splits <- model$splits[,colnames(model$splits) != "index"] 
+expect_error(deploy.hpdrpart(model), 
+	"'model$splits' does not have column 'index'",fixed = TRUE)
+
+model <- rpart(Species ~ ., iris)
+model$splits <- model$splits[,colnames(model$splits) != "adj"] 
+expect_error(deploy.hpdrpart(model), 
+	"'model$splits' does not have column 'adj'",fixed = TRUE)
+
+model <- rpart(Species ~ ., iris)
+model$csplit <- NULL
+expect_warning(deploy.hpdrpart(model), 
+	"'model' does not have an element called 'csplit'")
+
 })

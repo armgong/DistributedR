@@ -3,10 +3,45 @@
 ##Also required is the a distance_metric function that can compare the loss in accuracy
 ##between predictions. 
 
-varImportance <- function(model, xtest, ytest, distance_metric)
+varImportance <- function(model, xtest, ytest,  ..., distance_metric, trace = FALSE, nrow = 1000)
 {
+
 	if(!is.dframe(xtest) & !is.data.frame(xtest))
 		stop("'xtest' must be a dframe or data.frame")
+
+	if(missing(ytest) & is.element("terms",names(model)))
+	{
+		model_terms = model$terms
+		if(attr(model_terms,"response") == 1)
+ 		{
+			response_name = all.vars(model_terms)[1]
+			if(response_name %in% colnames(xtest))
+			{
+				if(is.dframe(xtest))
+				{
+				ytest = dframe(npartitions = npartitions(xtest))
+				foreach(i,1:npartitions(ytest), function(ytest = splits(ytest,i),
+								xtest = splits(xtest,i),
+								response_name = response_name)
+				{
+					ytest <- data.frame(xtest[,response_name])
+					update(ytest)
+				},progress = FALSE)
+				}
+				if(is.data.frame(xtest))
+				{
+					ytest <- data.frame(xtest[,response_name])
+				}
+			}
+			else
+				stop("dependant variable must be a unmodified column in the data")
+		}
+		else
+			stop("could not detect response variable from model$terms")
+	}
+	else if(missing(ytest))
+		stop("model$terms and 'ytest' both are missing") 
+
 	if(!is.dframe(ytest) & !is.data.frame(ytest))
 		stop("'ytest' must be a dframe or data.frame")
 	if((is.dframe(xtest) & !is.dframe(ytest)) | 
@@ -25,9 +60,20 @@ varImportance <- function(model, xtest, ytest, distance_metric)
 		#if the input was a dframe first randomize data then set shuffle function
 		permutation <- sample.int(nrow(xtest))
 		suppressWarnings({
-		xtest <- .shuffle_dframe(xtest,permutation)
-		ytest <- .shuffle_dframe(ytest,permutation)
+		if(trace)
+			print("shuffling data")
+		timing_info <- Sys.time()
+		xtest <- .shuffle_dframe(xtest,permutation, nrow = nrow)
+		ytest <- .shuffle_dframe(ytest,permutation, nrow = nrow)
+		if(trace)
+			print(Sys.time() - timing_info)
 		})
+	}
+	else if(is.data.frame(xtest))
+	{
+		permutation <- sample.int(nrow(xtest),nrow,replace = TRUE)
+		xtest = data.frame(xtest[permutation,])
+		ytest = data.frame(ytest[permutation,])
 	}
 
 	#determine if the output is categorical or not
@@ -61,21 +107,67 @@ varImportance <- function(model, xtest, ytest, distance_metric)
 			distance_metric <- meanSquared
 	}
 
+	features = 1:ncol(xtest)
+
+	if(is.element("terms",names(model)))
+	{
+		features <-names(which(apply(attr(model$terms,"factors"),1,any)))
+		features <-match(features,colnames(xtest)) 	
+	}
+
 	#this loop will shuffle the column locally and predict and 
 	#compute the difference in errors
-	importance = sapply(1:ncol(xtest), function(var)
+	importance = sapply(features, function(var)
 	{
+		if(trace)
+		print(paste("Calculating Importance for feature: ",
+			colnames(xtest)[var],sep=""))
+		timing_info <- Sys.time()
+		if(trace)
+		print("shuffling data")
 		shuffled_data <- shuffle_column(xtest, var)
-		shuffled_predictions <- predict(model, shuffled_data)
+		if(trace)
+		print(Sys.time() - timing_info)
+
+
+		if(trace)
+		print("predicting shuffled data")
+		timing_info <- Sys.time()
+		shuffled_predictions <- predict(model, shuffled_data, ...)
+		if(trace)
+		print(Sys.time() - timing_info)
+
+		tryCatch({
+		if(is.data.frame(ytest) & !is.data.frame(shuffled_predictions))
+			shuffled_predictions <- data.frame(shuffled_predictions)
+		},error = function(e) 
+			stop("could not coerce output of predict function to data.frame"))
+
+		if(ncol(shuffled_predictions) != ncol(ytest))
+			stop("predict function must output only 1 column of predictions")
+		if(nrow(shuffled_predictions) != nrow(ytest))
+			stop("predict function must output as many predictions as 'ytest'")
+
+		if(trace)
+		print("calculating error metric")
+		timing_info <- Sys.time()
 		var_imp = distance_metric(ytest, shuffled_predictions)[1]
+		if(trace)
+		print(Sys.time() - timing_info)
 		return(var_imp)
 	})
+	names(importance) <- colnames(xtest)[features]
 
-	names(importance) <- colnames(xtest)
 
 	#compute the errors without any shuffling
-	normal_predictions = predict(model, xtest)
-	base_accuracy = distance_metric(ytest, normal_predictions)
+	normal_predictions = predict(model, xtest,...)
+	tryCatch({
+	if(is.data.frame(ytest) & !is.data.frame(normal_predictions))
+		shuffled_predictions <- data.frame(normal_predictions)
+	},error = function(e) 
+		stop("could not coerce output of predict function to data.frame"))
+
+	base_accuracy = distance_metric(ytest, normal_predictions)[1]
 
 	importance <- importance - base_accuracy
 	importance <- as.data.frame(importance)
@@ -102,8 +194,10 @@ varImportance <- function(model, xtest, ytest, distance_metric)
 	foreach(i,1:npartitions(data), 
 		function(data = splits(data,i), 
 		shuffled_data = splits(shuffled_data,i), 
-		column = column)
+		column = column, nrow = nrow,
+		random_seed = sample.int(1000,1))
 		{
+			set.seed(random_seed)
 			shuffled_data = data
 			shuffled_data[,column] = 
 				data[sample.int(nrow(data)),column]
@@ -118,7 +212,7 @@ varImportance <- function(model, xtest, ytest, distance_metric)
 ##The idea of this is to reduce correlation between samples within the same split
 ##so that within each split we can shuffle locally  
 
-.shuffle_dframe <- function(data,permutation)
+.shuffle_dframe <- function(data,permutation, nrow = 1000)
 {
 	
 	rows_partition = partitionsize(data)[,1]
@@ -158,12 +252,17 @@ varImportance <- function(model, xtest, ytest, distance_metric)
 	function(temp_data = splits(temp_data,
 			as.list(npartitions(data)*(i-1)+1:npartitions(data))),
 		shuffled_data = splits(shuffled_data,i),
-		data = splits(data,i))
+		data = splits(data,i),
+		nrow = nrow)
 	{
 		shuffled_data = do.call(rbind,temp_data)
+		copies = floor(nrow/nrow(shuffled_data))
+		remainder = nrow - copies * nrow(shuffled_data)
+		indices = rep(1:nrow(shuffled_data),copies)
+		indices = c(indices,1:remainder)
+		shuffled_data = data.frame(shuffled_data[indices,])
 		update(shuffled_data)
 	},progress = FALSE)
-
 
 	colnames(shuffled_data) <- colnames(data)
 	return(shuffled_data)

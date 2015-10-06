@@ -1,6 +1,26 @@
+/*
+* Copyright [2014] Hewlett-Packard Development Company, L.P.
+*
+* This program is free software; you can redistribute it and/or
+* modify it under the terms of the GNU General Public License
+* as published by the Free Software Foundation; either version 2
+* of the License, or (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software
+* Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+*/
+
 #include"hpdRF.hpp"
 
-
+/* garbage collect forest
+   @param R_forest - forest to garbage collect
+ */
 void destroyForest(SEXP R_forest)
 {
   if(R_forest == R_NilValue)
@@ -78,7 +98,17 @@ void updateLeafNodeWithPredictions(SEXP R_responses, hpdRFnode *node,
 	    max = predictions[i];
 	  }
       node->prediction = bin+1;
+      if(node->summary_info)
+	{
+	  node->summary_info->node_counts_length = response_cardinality;
+	  if(!node->summary_info->node_counts)
+	    node->summary_info->node_counts = (double *)
+	      malloc(sizeof(double)*response_cardinality);
+	  memcpy(node->summary_info->node_counts,predictions,
+		 sizeof(double)*node->summary_info->node_counts_length);
+	}
       free(predictions);
+
     }
   else
     {
@@ -90,12 +120,18 @@ void updateLeafNodeWithPredictions(SEXP R_responses, hpdRFnode *node,
 	}
       node->prediction = L1/L0;
     }
+  if(node->summary_info)
+    {
+      node->summary_info->n = num_obs;
+      node->summary_info->wt = 0;
+      for(int i = 0; i < num_obs;i++)
+	node->summary_info->wt += weights[i];
+    }
 }
 
 
 extern "C" 
 {
-
 
   /*
    this function initializes the forest 
@@ -119,7 +155,8 @@ extern "C"
 			SEXP response_cardinality, 
 			SEXP R_features_num, SEXP R_weights, 
 			SEXP R_observation_indices, SEXP R_scale,
-			SEXP R_max_nodes, SEXP R_tree_ids)
+			SEXP R_max_nodes, SEXP R_tree_ids,
+			SEXP R_starting_depth)
   {
     hpdRFforest *forest = (hpdRFforest *) malloc(sizeof(hpdRFforest));
     SEXP R_forest = PROTECT(R_MakeExternalPtr(forest, R_NilValue, R_NilValue));
@@ -159,6 +196,7 @@ extern "C"
 					   TRUE,INTEGER(observation_indices), 
 					   REAL(weight), length(weight),
 					   forest->features_num);
+	forest->trees[i]->additional_info->depth = INTEGER(R_starting_depth)[i];
 
 	forest->leaf_nodes[i] = forest->trees[i];
 	hpdRFnode* tree = forest->trees[i];
@@ -186,7 +224,11 @@ extern "C"
     return(R_forest);
   }
 
-
+  /*this function prints the forest
+    @param R_forest - forest to print
+    @param R_max_depth - maximum depth to print to
+    @param classes - classes of output variable 
+   */
   SEXP printForest(SEXP R_forest, SEXP R_max_depth, SEXP classes)
   {
     hpdRFforest *forest = (hpdRFforest *) R_ExternalPtrAddr(R_forest);
@@ -209,6 +251,9 @@ extern "C"
     */
   }
 
+  /*
+    get max nodes value for each tree. returns an array of remaining number of nodes taht can be allocated 
+   */
   SEXP getMaxNodes(SEXP R_forest)
   {
     hpdRFforest *forest = (hpdRFforest *) R_ExternalPtrAddr(R_forest);
@@ -357,7 +402,7 @@ extern "C"
   {
     hpdRFforest * forest = (hpdRFforest *) R_ExternalPtrAddr(R_forest);
     SEXP R_buffer;
-    int buffer_size;
+    long long buffer_size;
     PROTECT(R_buffer = allocVector(VECSXP,forest->ntree+1));
     for(int i =0; i < forest->ntree; i++)
       {
@@ -538,7 +583,7 @@ extern "C"
     int* ndbigtree = INTEGER(R_ndbigtree);
     for(int i = 0; i < forest->ntree; i++ )
       {
-	ndbigtree[i] = countSubTree(forest->trees[i]);
+	ndbigtree[i] = countSubTree(forest->trees[i], 30);
 	if(max_nodes < ndbigtree[i])
 	  max_nodes = ndbigtree[i];
       }
@@ -579,7 +624,7 @@ extern "C"
     for(int i = 0; i < forest->ntree; i++)
       {
 	index = 0;
-	reformatTree(forest->trees[i],R_new_forest,&index, 
+	convertTreeToRandomForest(forest->trees[i],R_new_forest,&index, 
 		     features_cardinality, max_nodes, i);
       }
     UNPROTECT(8);
@@ -703,6 +748,24 @@ extern "C"
 
     return R_NilValue;
   }
+  SEXP getLeafDepths(SEXP R_forest)
+  {
+    hpdRFforest * forest = (hpdRFforest *) R_ExternalPtrAddr(R_forest);
+    SEXP depths;
+    PROTECT(depths = allocVector(INTSXP,forest->nleaves));
+    for(int i = 0 ; i < forest->nleaves; i++)
+      {
+	if(forest->leaf_nodes != NULL &&
+	   forest->leaf_nodes[i] != NULL && 
+	   forest->leaf_nodes[i]->additional_info != NULL)
+	  INTEGER(depths)[i] = forest->leaf_nodes[i]->additional_info->depth;
+	else
+	  INTEGER(depths)[i] = 0;
+      }
+    UNPROTECT(1);
+    return depths;
+
+  }
 
   SEXP getLeafCounts(SEXP R_forest)
   {
@@ -817,9 +880,10 @@ extern "C"
     hpdRFforest *forest = (hpdRFforest *) R_ExternalPtrAddr(R_forest);
     hpdRFnode* tree = forest->trees[0];
     SEXP model;
-    PROTECT(model = allocVector(VECSXP, 8));
+    PROTECT(model = allocVector(VECSXP, 12));
+    int max_depth = 30;
 
-    int numNodes = countSubTree(tree);
+    int numNodes = countSubTree(tree, max_depth);
     int max_ncat = 0;
     for(int i = 0; i < forest-> nfeature; i++)
       if(forest->features_cardinality[i] != NA_INTEGER &&
@@ -827,7 +891,9 @@ extern "C"
 	max_ncat = forest->features_cardinality[i];
 
     SEXP indices, var, dev, yval, complexity, split_index, ncat,
-      csplit;
+      csplit, n, wt, improve, R_node_counts = R_NilValue;
+    PROTECT(n = allocVector(INTSXP, numNodes));
+    PROTECT(wt = allocVector(REALSXP, numNodes));
     PROTECT(indices = allocVector(INTSXP, numNodes));
     PROTECT(var = allocVector(INTSXP, numNodes));
     PROTECT(dev = allocVector(REALSXP, numNodes));
@@ -835,12 +901,26 @@ extern "C"
     PROTECT(complexity = allocVector(REALSXP, numNodes));
     PROTECT(split_index = allocVector(REALSXP, numNodes));
     PROTECT(ncat = allocVector(INTSXP, numNodes));
+    PROTECT(improve = allocVector(REALSXP, numNodes));
+    double *node_counts = NULL;
+    if(forest->response_cardinality != NA_INTEGER)
+      {
+	PROTECT(R_node_counts=allocVector(REALSXP,
+					  numNodes*forest->response_cardinality));
+	node_counts = REAL(R_node_counts);
+      }
+
+
     int csplit_count = 0;
-    convertTreetoRpart(tree, INTEGER(indices), INTEGER(var), 
+    convertTreetoRpart(tree, INTEGER(indices), INTEGER(n), 
+		       REAL(wt),INTEGER(var), 
 		       REAL(dev), REAL(yval), REAL(complexity),
+		       REAL(improve),
 		       REAL(split_index),INTEGER(ncat),
+		       node_counts, numNodes,
 		       1, 1, 0, forest->features_cardinality,
-		       &csplit_count);
+		       forest->response_cardinality,
+		       &csplit_count, 1, max_depth);
 
     int nrow = csplit_count;
     csplit_count = 0;
@@ -857,11 +937,19 @@ extern "C"
     SET_VECTOR_ELT(model,2,dev);
     SET_VECTOR_ELT(model,3,yval);
     SET_VECTOR_ELT(model,4,complexity);
-    SET_VECTOR_ELT(model,5,split_index);
-    SET_VECTOR_ELT(model,6,ncat);
-    SET_VECTOR_ELT(model,7,csplit);
+    SET_VECTOR_ELT(model,5,n);
+    SET_VECTOR_ELT(model,6,wt);
 
-    UNPROTECT(length(model)+1);
+    SET_VECTOR_ELT(model,7,split_index);
+    SET_VECTOR_ELT(model,8,ncat);
+    SET_VECTOR_ELT(model,9,improve);
+
+    SET_VECTOR_ELT(model,10,csplit);
+    SET_VECTOR_ELT(model,11,R_node_counts);
+    if(R_node_counts != R_NilValue)
+      UNPROTECT(1);
+
+    UNPROTECT(length(model));
     return model;
     
   }
@@ -882,6 +970,14 @@ extern "C"
     UNPROTECT(1);
     return forest;
   }
-  
+
+
+  void simplifyForest(SEXP R_forest)
+  {
+    hpdRFforest * forest = (hpdRFforest *) R_ExternalPtrAddr(R_forest);
+    for(int i = 0; i < forest->ntree; i++)
+      simplifyTree(forest->trees[i]);
+  }
+
 }
 

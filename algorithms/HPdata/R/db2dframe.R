@@ -81,7 +81,7 @@ db2dframe <- function(tableName, dsn, features = list(...), except=list(...), np
 
          if(nrow(view_columns) == 0) {
            norelation <- TRUE
-           stop(paste("Table/View ", schema, ".", tableName, " does not exist", sep=""))
+           stop(paste("Table/View ", schema, ".", table, " does not exist", sep=""))
          } else { 
            relation_type <- "view"
            feature_columns <- view_columns[[1]] 
@@ -104,7 +104,7 @@ db2dframe <- function(tableName, dsn, features = list(...), except=list(...), np
          isview <- sqlQuery(db_connect, paste("select data_type_id from view_columns where table_name ILIKE '", table, "' and table_schema ILIKE '", schema, "' and lower(column_name) in (", tolower(.toColumnString(features, TRUE)), ")", sep=""))
          if(nrow(isview) == 0) {
            norelation <- TRUE
-           stop(paste("Table/View ", schema, ".", tableName, " does not exist with specified 'features'", sep=""))
+           stop(paste("Table/View ", schema, ".", table, " does not exist with specified 'features'", sep=""))
          } else {
            relation_type <- "view"
            feature_data_type <- isview[[1]]
@@ -124,8 +124,9 @@ db2dframe <- function(tableName, dsn, features = list(...), except=list(...), np
     }
 
     # excluding the elements in the except list
+    `%notin%` <- function(x,y) !(tolower(x) %in% tolower(y))
     if(!missing(except) && length(except)!=0 && except!="")
-        feature_columns <- feature_columns[sapply(feature_columns, function(x) !(x %in% except))]
+        feature_columns <- feature_columns[feature_columns %notin% except]
 
     # we have columns, construct column string
     nFeatures <- length(feature_columns)  # number of features
@@ -312,10 +313,9 @@ db2dframe <- function(tableName, dsn, features = list(...), except=list(...), np
                     stop(war$message)
                 }
             )
-            segment<-sqlQuery(connect, qryString, buffsize= end-start)
+            x <- sqlQuery(connect, qryString, buffsize= end-start, stringsAsFactors=FALSE)
             odbcClose(connect)
 
-            x <- segment
             colnames(x) <- feature_columns
             update(x)
         })

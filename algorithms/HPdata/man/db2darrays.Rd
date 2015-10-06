@@ -65,7 +65,7 @@ db2darrays supports numeric and logical data types.
     pred=list("mltvspline1", "mltvspline2", "agespline1", "agespline2",
     "hpichgspline", "ficospline"))
 
-    # Optionally user cannot specify pred argument in which case
+    # If user do not specify pred argument,
     # all columns of the table mortgage by default excluding
     # the response column name (resp argument)
     loadedData <- db2darrays ("mortgage", dsn="RDev", resp=list("def")) 

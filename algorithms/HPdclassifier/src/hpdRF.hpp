@@ -29,6 +29,17 @@ struct HPDRFNode;
 
 typedef struct 
 {
+  double wt;
+  double complexity;
+  double deviance;
+  double* node_counts;
+  int n;
+  int node_counts_length;
+
+} hpdRFSummaryInfo;
+
+typedef struct 
+{
   int* indices;
   double* weights;
   int attempted, completed;
@@ -42,11 +53,10 @@ typedef struct
 typedef struct HPDRFNode
 {
   double prediction;
-  double deviance;
-  double complexity;
   hpdRFNodeInfo* additional_info;
   struct HPDRFNode* left;
   struct HPDRFNode* right;
+  hpdRFSummaryInfo* summary_info;
   double* split_criteria;
   int split_variable, split_criteria_length;
   int treeID;
@@ -84,25 +94,30 @@ hpdRFnode* createChildNode(hpdRFnode *parent,
 void cleanSingleNode(hpdRFnode *node);
 SEXP printNode(hpdRFnode *tree, int depth, int max_depth, SEXP classes);
 void destroyTree(hpdRFnode *tree);
-int calculateBufferSize(hpdRFnode* tree);
+long long calculateBufferSize(hpdRFnode* tree);
 int* serializeTree(hpdRFnode *tree, int* buffer);
 int* unserializeTree(hpdRFnode *tree, int* buffer, hpdRFnode**leaf_nodes);
-int countSubTree(hpdRFnode *tree);
-void reformatTree(hpdRFnode* tree, SEXP forest, int* index, 
+int countSubTree(hpdRFnode *tree, int remaining_depth);
+void convertTreeToRandomForest(hpdRFnode* tree, SEXP forest, int* index, 
 		  int *features_cardinality, int nrow, int treeID);
-
+void simplifyTree(hpdRFnode *tree);
 extern "C"
 {
 SEXP undoSplits(SEXP R_forest, SEXP R_node_ids);
+SEXP printForest(SEXP R_forest, SEXP R_max_depth, SEXP classes);
 }
 
 
 int convertTreetoRpart(hpdRFnode* tree, int* indices,
+		       int* n, double* wt,
 		       int* var, double* dev, 
-		       double* yval, double* complexity,
+		       double* yval, double* complexity, double* improve,
 		       double* split_index, int* ncat, 
+		       double* node_count, int offset, 
 		       int rowID, double parent_cp, int node_index,
-		       int* features_cardinality, int* csplit_count);
+		       int* features_cardinality, int response_cardinality,
+		       int* csplit_count,
+		       int current_depth, int max_depth);
 
 
 void populateCsplit(hpdRFnode* tree, int* features_cardinality, 

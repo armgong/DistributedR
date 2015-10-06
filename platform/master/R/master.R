@@ -111,9 +111,9 @@ clean_string <- function(string) {
   clean <- gsub("\t","", clean, fixed=TRUE)
 }
 
-start_workers <- function(cluster_conf,
+start_workers <- function(cluster_conf, storage,
                           bin_path="./bin/start_proto_worker.sh",
-                          inst=0, mem=0, rmt_home="", rmt_uid="", log=2) {
+                          executors=0, mem=0, rmt_home="", rmt_uid="", log=2) {
   if (rmt_home == ""){
     rmt_home <- getwd()
   }
@@ -161,17 +161,17 @@ start_workers <- function(cluster_conf,
       r$Executors <- clean_string(r$Executors)
 
       m <- ifelse(as.numeric(mem)>0, mem, ifelse(is.na(r$SharedMemory), 0, r$SharedMemory))
-      e <- ifelse(as.numeric(inst)>0, inst, ifelse(is.na(r$Executors), 0, r$Executors))	
+      e <- ifelse(as.numeric(executors)>0, executors, ifelse(is.na(r$Executors), 0, r$Executors))	
       if (as.numeric(e)>64)
       {
-        message(paste("Warning: distributedR only supports 64 R instances per worker.\nNumber of R instances has been truncated from ", e, " to 64 for worker ", r$Hostname, "\n", sep=""))
+        message(paste("Warning: distributedR only supports 64 Executors per worker.\nNumber of Executors has been truncated from ", e, " to 64 for worker ", r$Hostname, "\n", sep=""))
         e <- 64
       }
       sp_opt <- getOption("scipen")  # This option value determines whether exponentional or fixed expression will be used (m and e should not not be expressed using exponentional expression)
       options("scipen"=100000)
 
       local_cmd <- paste("cd",rmt_home,";", bin_path,
-                   "-m", m, "-e", e, "-p", r$StartPortRange, "-q", r$EndPortRange, "-l", log, "-a", master_addr, "-b", master_port,
+                   "-m", m, "-e", e, "-s", storage, "-p", r$StartPortRange, "-q", r$EndPortRange, "-l", log, "-a", master_addr, "-b", master_port,
                    "-w", r$Hostname, env_variables, sep=" ")
       ssh_cmd <- paste("ssh -n", paste(rmt_uid,"@",r$Hostname,sep=""), "'", local_cmd,"'", sep=" ")
       # do not use SSH if worker is running on localhost
@@ -187,7 +187,7 @@ start_workers <- function(cluster_conf,
       }
       
       options("scipen"=sp_opt)
-      ##print(sprintf("cmd: %s",cmd))
+      #print(sprintf("cmd: %s",cmd))
       system(cmd, wait=FALSE, ignore.stdout=TRUE, ignore.stderr=TRUE)
     }
   }, error = handle_presto_exception)
@@ -195,8 +195,8 @@ start_workers <- function(cluster_conf,
 }
 
 distributedR_start <- function(inst=0, mem=0,
-                         cluster_conf="",
-                         log=2) {
+                         cluster_conf="", executors=0,
+                         log=2, storage="worker") {
   
   gcinfo(FALSE)
   gc()
@@ -207,19 +207,25 @@ distributedR_start <- function(inst=0, mem=0,
   rmt_home=""
   rmt_uid=""
   yarn=FALSE
+
+  if(tolower(storage) != "executor" && tolower(storage) != "worker") stop("Argument 'storage' can either be worker or executor")
+  if(!(is.numeric(executors) && floor(executors)==executors && executors>=0)) stop("Argument 'executors' should be a non-negative integral value")
   if(!(is.numeric(inst) && floor(inst)==inst && inst>=0)) stop("Argument 'inst' should be a non-negative integral value")
   if(!(is.numeric(mem) && mem>=0)) stop("Argument 'mem' should be a non-negative number")
 
+  if(executors == 0) executors <- inst
   pm <- NULL
   tryCatch(pm <- get_pm_object(), error=function(e){})
   if (!is.null(pm)){
     stop("distributedR is already running. Call distributedR_shutdown() to terminate existing session\n")
   }
+
   if(presto_home==""){
     presto_home<-ifelse(Sys.getenv(c("DISTRIBUTEDR_HOME"))=="", system.file(package='distributedR'), Sys.getenv(c("DISTRIBUTEDR_HOME")))
   }
+  
   if (cluster_conf==""){
-    cluster_conf <- paste(presto_home,"/conf/cluster_conf.xml",sep="")
+    cluster_conf <- ifelse(Sys.getenv(c("DR_CLUSTER_CONF")) != "", Sys.getenv(c("DR_CLUSTER_CONF")), paste(presto_home,"/conf/cluster_conf.xml",sep=""))
   }
   bin_path <- "./bin/start_proto_worker.sh"
   # Normalize config to expand env vars etc
@@ -235,8 +241,8 @@ distributedR_start <- function(inst=0, mem=0,
   assign(".PrestoDobjectMap", dobject_map, envir = .GlobalEnv)
   tryCatch({
     if (workers) {
-      start_workers(cluster_conf=cluster_conf, bin_path=bin_path, 
-        inst=inst, mem=mem, rmt_home=rmt_home, rmt_uid=rmt_uid, log=log)
+      start_workers(cluster_conf=cluster_conf, storage=storage, bin_path=bin_path, 
+        executors=executors, mem=mem, rmt_home=rmt_home, rmt_uid=rmt_uid, log=log)
     }
     else if (yarn){
       dr_path <- system.file(package = "distributedR")
@@ -245,7 +251,7 @@ distributedR_start <- function(inst=0, mem=0,
 
     }
 
-    pm$start(log)
+    pm$start(log, storage)
   },error = function(excpt){    
     pm <- get_pm_object()
     distributedR_shutdown(pm)
@@ -377,7 +383,7 @@ distributedR_status <- function(help=FALSE){
       names(stat_df) <- c("Workers", "Inst", "SysMem", "MemUsed", "DarrayQuota", "DarrayUsed")
   }},error = handle_presto_exception)
   if(help==TRUE) {
-    cat("\ndistributedR_status - help\nWorkers: list of workers\nInst: number of R instances on a worker\n")
+    cat("\ndistributedR_status - help\nWorkers: list of workers\nInst: number of executors on a worker\n")
     cat("SysMem: total available system memory (MB)\nMemUsed: memory currently used in a worker (MB)\n")
     cat("DarrayQuota:  memory for darrays (MB)\nDarrayUsed: memory currently used by darray (MB)\n\n")
   }

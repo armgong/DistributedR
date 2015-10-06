@@ -111,11 +111,18 @@ setMethod("==", signature("dobject", "dobject"),
                                        sComp = splits(comp, i)){
               sComp[1] = all(sA==sB)
               update(sComp)
-            })
+            }, progress=FALSE)
             output <- getpartition(comp)
             all(output==1)
           }
          )
+
+setMethod("!=", signature("dobject", "dobject"),
+          function(e1, e2) {
+	    !(e1==e2)
+	  }
+         )
+
 dimnames.dobject <- function(x) {
   list(x@dimnames[[1]], x@dimnames[[2]])
 }
@@ -130,14 +137,6 @@ dimnames.dobject <- function(x) {
   x@dimnames[[1]] <- value[[1]]
   x@dimnames[[2]] <- value[[2]]
   x
-}
-
-# get (row,col) offsets of split with index
-dobject.getoffsets <- function(fulldim, blockdim, index) {
-  blocks <- ceiling(fulldim/blockdim)
-  block.r <- (index-1)%/%blocks[2]+1
-  block.c <- (index-1)%%blocks[2]+1
-  return(c((block.r-1)*blockdim[1], (block.c-1)*blockdim[2]))
 }
  
 # get (r,c) offsets of partition with index
@@ -193,36 +192,6 @@ dobject.getAllOffsets <- function(obj) {
   return (ret)
 }
 
-# get dims of split with index
-dobject.getdims <- function(fulldim, blockdim, index) {
-  res <- c(1,1)
-
-  blocks <- ceiling(fulldim/blockdim)
-  block.x <- (index-1)%/%blocks[2]+1
-  block.y <- (index-1)%%blocks[2]+1
-
-  if (block.x < blocks[1]) {
-    res[1] <- blockdim[1]
-  } else {
-    if (fulldim[1]%%blockdim[1] == 0) {
-      res[1] <- blockdim[1]
-    } else {
-      res[1] <- fulldim[1]%%blockdim[1]
-    }
-  }
-
-  if (block.y < blocks[2]) {
-    res[2] <- blockdim[2]
-  } else {
-    if (fulldim[2]%%blockdim[2] == 0) {
-      res[2] <- blockdim[2]
-    } else {
-      res[2] <- fulldim[2]%%blockdim[2]
-    }
-  }
-  return(as.integer(res))
-}
-
 setGeneric("getemptyflag", function(x) standardGeneric("getemptyflag"))
 setMethod("getemptyflag", signature("dobject"),
   function(x) {
@@ -237,15 +206,10 @@ setMethod("partitionsize", signature("dobject","missing"),
   function(x, index) {
     if(is.null(x)) return (0)
     nparts<-npartitions(x)
-    if(x@subtype == "FLEX_DECLARED"){
-      #For flex objects let's go to the worker and figure out the current size
-      temp<-darray(dim=c(nparts,2), blocks=c(1,2))
-      foreach(i, 1:nparts, getSize<-function(y=splits(x,i), res=splits(temp,i)) {
-	     res<-matrix(dim(y), nrow=1)
-	     update(res)
-        }, progress=FALSE)
-      return (getpartition(temp))
-   }else{
+    
+    if(x@subtype != "STD"){
+      return(x@dobject_ptr$parts_sizes())
+    } else {
      #For non-flex objects we will reuse information from dimensions
      temp<-NULL
      fulldim<-dim(x)
@@ -265,7 +229,7 @@ setMethod("partitionsize", signature("dobject","missing"),
      csizes<-c(rep(blockdim[2],(nblocks[2]-1)),lastcsize)
      temp<- (cbind(rep(rsizes,each=length(csizes)),rep(csizes,length(rsizes))))
      return (temp)
-   }
+    }
 })
 
 #Return the size of a partition
@@ -275,17 +239,10 @@ setMethod("partitionsize", signature("dobject","numeric"),
     index<-round(index)
     if(index<1) stop("Partition index should be a positive number")
     if(index>npartitions(x)) stop("Partition index should be less than total number of partitions (",npartitions(x),")")
-
     if(x@subtype == "FLEX_DECLARED"){
-        #We don't store the sizes of flexible objects. Therefore, go to the worker and determine size
-	temp<-darray(dim=c(1,2), blocks=c(1,2))
-	foreach(i, 1:1, getSize<-function(y=splits(x,index), res=splits(temp,1)) {
-	     res<-matrix(dim(y), nrow=1)
-	     update(res)
-        }, progress=FALSE)
-	return (getpartition(temp))
-    }else{
-	#Just return the size as per the declared value
+      return(t(as.matrix(x@dobject_ptr$parts_sizes()[index,])))
+    } else {
+      #Just return the size as per the declared value
       return (matrix(dobject.getdims(x@dim,x@blocks,index),nrow=1))
     }
 })

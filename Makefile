@@ -30,23 +30,23 @@ install:
 	R CMD INSTALL platform/executor
 	R CMD INSTALL platform/master
 
+install_algorithms:
+	R CMD INSTALL algorithms/HPdutility
+	R CMD INSTALL algorithms/HPdregression
+	R CMD INSTALL algorithms/HPdcluster
+	R CMD INSTALL algorithms/HPdclassifier
+	R CMD INSTALL algorithms/HPdgraph
+	R CMD INSTALL algorithms/HPdata
+
 uninstall:
 	R CMD REMOVE distributedR
 	R CMD REMOVE Executor
-
-install_algorithms:
-	R CMD INSTALL algorithms/HPdata
-	R CMD INSTALL algorithms/HPdclassifier
-	R CMD INSTALL algorithms/HPdcluster
-	R CMD INSTALL algorithms/HPdgraph
-	R CMD INSTALL algorithms/HPdregression
-
-uninstall_algorithms:
-	R CMD REMOVE algorithms/HPdata
-	R CMD REMOVE algorithms/HPdclassifier
-	R CMD REMOVE algorithms/HPdcluster
-	R CMD REMOVE algorithms/HPdgraph
-	R CMD REMOVE algorithms/HPdregression
+	R CMD REMOVE HPdregression
+	R CMD REMOVE HPdcluster
+	R CMD REMOVE HPdclassifier
+	R CMD REMOVE HPdgraph
+	R CMD REMOVE HPdata
+	R CMD REMOVE HPdutility
 
 install_vRODBC:
 	R CMD INSTALL vRODBC
