@@ -267,22 +267,26 @@ hpdrpart <- function(formula, data, weights, subset , na.action = na.omit,
 	attr(model,"xlevels") <- levels.dframe(data)
 	response_name = all.vars(model$terms)[1]
 	categorical_features <- attr(model,"xlevels")$columns
-	categorical_features <- which(colnames(data)[categorical_features] != response_name)
 	attr(model,"xlevels")$columns <- NULL
-	attr(model,"xlevels") <- attr(model,"xlevels")$Levels[categorical_features]
-	names(attr(model,"xlevels")) <- 
-		sapply(categorical_features, function(i) colnames(data)[i])
+	attr(model,"xlevels") <- attr(model,"xlevels")$Levels
+	names(attr(model,"xlevels")) <- colnames(data)[categorical_features]
+	response_col = colnames(data)[categorical_features] == response_name
+	attr(model,"xlevels") <- attr(model,"xlevels")[!response_col]
 	model$nExecutor = nExecutor
 	class(model) <- c("hpdrpart","rpart")
 
 	if(is.data.frame(data))
 		responses = getpartition(responses)
 	
-	variable.importance = cbind(data.frame(var = rownames(model$splits)),
-			    data.frame(improve =model$splits[,"improve"]))
-	variable.importance <- aggregate(improve ~ var, variable.importance, sum)
-	rownames(variable.importance) <- variable.importance$var
-	variable.importance$var <- NULL
+	variable.importance = NULL
+	if(nrow(model$splits)>0)
+	{
+		variable.importance = cbind(data.frame(var = rownames(model$splits)),
+			data.frame(improve =model$splits[,"improve"]))
+		variable.importance <- aggregate(improve ~ var, variable.importance, sum)
+		rownames(variable.importance) <- variable.importance$var
+		variable.importance$var <- NULL
+	}
 	
 	if(completeModel)
 	{
@@ -412,23 +416,26 @@ predict.hpdrpart <- function(model, newdata, do.trace = FALSE, ...)
 	varnames = c("<leaf>", varnames)
 	model[[2]] = varnames[model[[2]]+1]
 	leaf_ids = model[[1]]
-	yval2 = NULL
-	if(!is.null(model[[12]]))
-	{
-		node_counts = matrix(model[[12]],ncol = nClasses)
-		node_ratio = apply(node_counts,2,function(x) x/sum(x))
-		node_prob = rowSums(node_counts)/n
-		yval2 = cbind(matrix(model[[4]]),node_counts, node_ratio, node_prob)
-		colnames(yval2) <- c(paste("yval2.V",1:(2*nClasses+1),sep = ""),
-				"yval2.nodeprob")
-	}
+	node_counts = model[[12]]
 	model = data.frame(var = model[[2]], n = model[[6]], wt = model[[7]], 
 	      dev = model[[3]], yval = matrix(model[[4]]), complexity = model[[5]])
 	colnames(model) <- c("var", "n","wt","dev", "yval", "complexity")
-	if(!is.null(yval2))
-		model = cbind(model,yval2)
-	rownames(model) <- leaf_ids
 	model <- cbind(model, ncompete = 0, nsurrogate = 0)
+
+	tryCatch({
+	yval2 = NULL
+	if(!is.null(node_counts))
+	{
+		node_counts = matrix(node_counts,ncol = nClasses)
+		node_ratio = apply(node_counts,1,function(x) x/sum(x))
+		node_prob = rowSums(node_counts)/model$n
+		yval2 = cbind(matrix(model$yval),node_counts, node_ratio, node_prob)
+		colnames(yval2) <- c(paste("yval2.V",1:(2*nClasses+1),sep = ""),
+				"yval2.nodeprob")
+		model = cbind(model,yval2)
+	}
+	},error = function(e){})
+	rownames(model) <- leaf_ids
 	valid_splits <- complete.cases(splits)
 	splits <- splits[valid_splits,]
 	if(!is.matrix(splits))  n[node_index] = tree->summary_info->n;
@@ -473,5 +480,13 @@ deploy.hpdrpart <- function(model)
 
 	if(!is.element("csplit", names(model)))
 		warning("'model' does not have an element called 'csplit'")
+
+	if(is.element("terms", names(model)))
+		environment(model$terms)  <- globalenv()
+	else
+		stop("'model' does not have an element called 'terms'") 
+	if(is.element("na.action", names(model)))
+		environment(model$na.action)  <- globalenv()
+
 	return(model)
 }
