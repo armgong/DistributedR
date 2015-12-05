@@ -26,6 +26,7 @@ hpdrandomForest <- hpdRF_parallelTree <- function(formula, data,
 {
 	start_timing <- Sys.time()
 	ddyn.load("HPdclassifier")
+
 	if(do.trace)
 	.master_output("Input validation and preprocessing")
 	timing_info <- Sys.time()
@@ -271,14 +272,13 @@ hpdrandomForest <- hpdRF_parallelTree <- function(formula, data,
 	threshold = as.integer(floor(threshold))
 	max_nodes_per_iteration = as.integer(floor(max_nodes_per_iteration))
 	nodes_per_executor = as.integer(floor(nodes_per_executor))
-	max_trees_per_iteration =as.integer(floor(min(max_trees_per_iteration,ntree)))
+	max_trees_per_iteration=as.integer(floor(min(max_trees_per_iteration,ntree)))
 
 	if(do.trace)
 		.master_output("Starting to build forest")
 
 	if(do.trace)
 		.master_output(paste("\ttrees left: ", ntree, " out of a total of ", ntree))
-
 
 	suppressWarnings(model <-
 		.hpdRF_distributed(observations, responses, 
@@ -348,23 +348,14 @@ hpdrandomForest <- hpdRF_parallelTree <- function(formula, data,
 		if(do.trace)
 		.master_output("\tdistributing forest: ",appendLF = FALSE)
 		timing_info <- Sys.time()
-		temp_forest = .distributeForest(model$forest)
+		forest = .distributeForest(model$forest,forest )
 		if(do.trace)
 		.master_output(format(round(Sys.time() - timing_info, 2), 
 			nsmall = 2))
 
 		model$forest <- NULL
-		gc()
-		forest <- .combineDistributedForests(forest,temp_forest)
-		curr_ntree = as.integer(curr_ntree - min(ntree,max_trees_per_iteration))
-		suppressWarnings({
-		forest <- .redistributeForest(forest,
-	       	       split(1:(ntree-curr_ntree),
-				1:min(sum(distributedR_status()$Inst)),
-				ntree-curr_ntree))
-		})
+		curr_ntree=as.integer(curr_ntree-min(ntree,max_trees_per_iteration))
 		rm(model)
-
 		gc()
 		if(do.trace)
 		.master_output("\tcurrent distributed forest size: ",
@@ -380,12 +371,13 @@ hpdrandomForest <- hpdRF_parallelTree <- function(formula, data,
 			timing_info <- Sys.time()
 		oob_predictions = .predictOOB(forest, observations, 
 			responses, oob_indices, cutoff, classes, 
-			reduceModel = reduceModel,do.trace)
+			ntree = ntree, reduceModel = reduceModel, do.trace)
 			forest = oob_predictions$dforest
 			},error = function(e)
 			{
 				warning(paste("aborting oob computations. received error:", e))
 			})
+
 		if(do.trace)
 		.master_output("\tcurrent distributed forest size: ",
 			format(round(d.object.size(forest)/1024/1024,2),nsmall = 2), 
@@ -450,8 +442,9 @@ hpdrandomForest <- hpdRF_parallelTree <- function(formula, data,
 			}
 			},
 			error = function(e){
-			      paste("could not compute additional statistics due to error:", e)
+			      warning(paste("could not compute additional statistics due to error:", e))
 			})			
+
 		}
 	}
 	else
@@ -462,7 +455,7 @@ hpdrandomForest <- hpdRF_parallelTree <- function(formula, data,
 		{
 			tryCatch(
 			{
-			confusion = confusionMatrix(true_responses, 
+			confusion = HPdutility::confusionMatrix(true_responses, 
 				    	model$predicted)
 			model$err.rate = oob_predictions$err.rate
 			classErr <- model$err.rate[nrow(model$err.rate),-1]
@@ -495,7 +488,7 @@ hpdrandomForest <- hpdRF_parallelTree <- function(formula, data,
 				{
 					stop("Categories of 'ytest' are not the same as categories of response variable trained in model")
 				}
-				confusionTest = confusionMatrix(ytest,
+				confusionTest = HPdutility::confusionMatrix(ytest,
 			       		model$test$predicted)
 				model$test$err.rate = errorRate(ytest,
 					model$test$predicted)
@@ -508,7 +501,7 @@ hpdrandomForest <- hpdRF_parallelTree <- function(formula, data,
 			}
 			},
 			error = function(e){
-			      paste("could not compute additional statistics due to error:", e)
+			      warning(paste("could not compute additional statistics due to error:", e))
 			})			
 
 		}
@@ -619,12 +612,15 @@ predict.hpdRF_parallelTree <- function(model, newdata, cutoff,
 
 	y <- dframe(npartitions = npartitions(data))
 	x <- dframe(npartitions = npartitions(data))
-	
+	w <- dframe(npartitions = npartitions(data))
+		
 	if(trace)
 	.master_output("\tprocessing formula: ", appendLF = FALSE)
 	
+
 	if(is.null(weights))
 		weights = clone(data,ncol = 1, data = 1)
+
 
 
 	terms = dlist(npartitions = npartitions(x))
@@ -639,12 +635,13 @@ predict.hpdRF_parallelTree <- function(model, newdata, cutoff,
 				       model_terms = splits(terms,i),
 				       x_colnames = splits(x_colnames,i),
 				       weights = splits(weights,i),
+				       w = splits(w,i),
 				       na.action = na.action)
 	{
   		assign("data", na.action(cbind(weights,data)), globalenv())
-		weights = data.frame(as.double(data[,1]))
+		w = data.frame(as.double(data[,1]))
 		data[,1] = NULL
-		update(weights)
+		update(w)
 		colnames(data) <- column_names
 		if(inherits(model_formula, "formula"))
 			model_terms = terms(model_formula, data = data)
@@ -666,6 +663,9 @@ predict.hpdRF_parallelTree <- function(model, newdata, cutoff,
 		     	data = data, na.action = na.action)
 		attr(x,"terms") <- NULL
 		data_type = c(data_type,sapply(x,class))
+		data_type[which(data_type=="integer")] = "numeric"
+		data_type[which(data_type=="double")] = "numeric"
+
 		rm(data)
 		gc()
 		update(x)
@@ -715,17 +715,23 @@ predict.hpdRF_parallelTree <- function(model, newdata, cutoff,
 			update(true_responses)
 		},progress = FALSE)
 	terms = getpartition(terms,1)[[1]]
-	
+
+	y_classes = lapply(1:ncol(y), function(a) NULL)
+	y_classes[y_levels$columns] = y_levels$Levels
+	x_classes = lapply(1:ncol(x), function(a) NULL)
+	names(x_classes) <- x_colnames
+	x_classes[x_colnames[x_levels$columns]] = x_levels$Levels
+
 	if(trace)
 	.master_output(format(round(Sys.time() - timing_info, 2), 
 		nsmall = 2))
 
 
-    return(list(x=x,y=y, weights = weights, terms = terms,
+    return(list(x=x,y=y, weights = w, terms = terms,
     		  x_cardinality = x_cardinality, 
 		  y_cardinality = y_cardinality,
-		  y_classes = y_levels$Levels,
-		  x_classes = x_levels$Levels,
+		  y_classes = y_classes,
+		  x_classes = x_classes,
 		  true_responses = true_responses,
 		  x_colnames = x_colnames))
 }
@@ -786,8 +792,8 @@ deploy.hpdRF_parallelTree <- function(model)
 	class(model) <- c("hpdrandomForest", 
 		     "randomForest", "randomForest.formula")
 	model$forest$trees <- NULL
-    # clearing environment
-    environment(model$terms) <- globalenv()
+    	# clearing environment
+	environment(model$terms) <- globalenv()
 
 	return(model)
 }

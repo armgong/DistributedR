@@ -202,7 +202,7 @@
     inputData <- list(ntree=ntree, mtry=mtry, 
             replace=replace, classwt=classwt, sampsize=sampsize,
             nodesize=nodesize, maxnodes=maxnodes, importance=importance, localImp=localImp,
-            nPerm=nPerm, proximity=proximity,
+            nPerm=nPerm, proximity=proximity, norm.votes=FALSE,
             keep.forest=keep.forest, corr.bias=corr.bias, nExecutor=nExecutor)
     # these arguments don't have default values in the original signature of the function
     if (!missing(cutoff))
@@ -219,7 +219,7 @@
         inputData$setSeed <- rep(setSeed, nExecutor)
     } else {
         # setting the seed to improve randomness of executors
-        inputData$setSeed <- runif(nExecutor, 1,10000)
+        inputData$setSeed <- sample.int(nExecutor*1000, nExecutor)
     }
 
     if(trace) {

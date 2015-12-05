@@ -57,13 +57,13 @@ hpdegbm <- function(
        Y_train, 
        nExecutor,                                     
        distribution,
-       n.trees = 1000, 
+       n.trees = 500, 
        interaction.depth = 1, 
        n.minobsinnode = 10,
        shrinkage = 0.050,     #[0.001, 1]
        bag.fraction = 0.50, #0.5-0.8
        samplingFlag = TRUE,  
-       sampleThresh=100,
+       sampleThresh = 100,
        trace = FALSE) 
 # X_train: a dframe, darray, data frame, or data matrix containing the predictor variables
 # Y_train: a vector of outputs
@@ -193,34 +193,9 @@ hpdegbm <- function(
   if (!(is.numeric(sampleThresh) && length(sampleThresh) == 1 && sampleThresh > 0))
     stop("'sampleThresh' must be a positive number")
 
-  if (samplingFlag && .isdarrayorframe(Y_train)) {
-    # Used to compute the number of samples needed per partition
-    nClass <- if (distribution == "gaussian") {
-                1
-              } else if (distribution == "adaboost" || distribution == "bernoulli") {
-                2  
-              } else if (distribution == "multinomial") {
-                if (trace) {
-                  message("Counting number of classes in response...")
-                }
-                # Count the number of classes in Y_train
-                if (is.dframe(Y_train)) {
-                  length(levels.dframe(Y_train)$Levels[[1]])
-                } else if (is.darray(Y_train)) {
-                  classCounts <- dframe(npartition = npartitions(Y_train))
-                  foreach(i, 1:npartitions(Y_train), 
-                          function(ys = splits(Y_train, i), 
-                                   ccs = splits(classCounts, i)) {
-                    ccs <- as.data.frame(names(table(ys[,1])))
-                    update(ccs)
-                  })
-                  length(unique(getpartition(classCounts)[,1]))
-                } 
-              }
-    if (trace) {
-      message(paste0("Counted ", nClass,  " classes in Y_train"))
-    }
-  }
+  if (distribution == 'multinomial' && is.darray(Y_train)) 
+    stop("When distribution = 'multinomial', 'Y_train' cannot be a darray")
+
   ##########################################################################
   # Model training
   ##########################################################################
@@ -229,8 +204,14 @@ hpdegbm <- function(
    dl_GBM_model <- dlist(nExecutor)
    dbest.iter <- darray(c(nExecutor,1), c(1,1))  
   
+   # Allow for determinism when the user sets the seed outside the function
+   seeds <- sample.int(nExecutor*1000, nExecutor)
+
    # For small data, build nExecutor models on the whole dataset
    if (!is.dframe(X_train) && !is.darray(X_train)) {       
+     if (trace) {
+       message("Centralized data: Building models on entire dataset")
+     }
      foreach(i, 1:nExecutor, function(dGBM_modeli       = splits(dl_GBM_model,i), 
                                       best.iter         = splits(dbest.iter,i),
                                       x                 = X_train,
@@ -241,18 +222,40 @@ hpdegbm <- function(
                                       n.minobsinnode    = n.minobsinnode,
                                       shrinkage         = shrinkage,
                                       bag.fraction      = bag.fraction,
+                                      seeds             = seeds,
+                                      i                 = i,
                                       buildLocalModel   = .buildLocalGbmModel) {
         buildLocalModel(dGBM_modeli, best.iter, x, y, n.trees, distribution,
                         interaction.depth, n.minobsinnode, shrinkage,
-                        bag.fraction)
+                        bag.fraction, seeds[i])
 
       }, progress = trace)
     } else {  
+      if (trace) {
+        message("Distributed data: Building models on samples of dataset")
+      }
+ 
       # For big data: Sample the data into nExecutor partitions and build a
       # model on each
-      
+
+      # Used to compute the number of samples needed per partition
+      nClass <- if (distribution == "gaussian") {
+                  1
+                } else if (distribution == "adaboost" || distribution == "bernoulli") {
+                  2  
+                } else if (distribution == "multinomial") {
+                  if (trace) {
+                    message("Counting number of classes in response...")
+                  }
+                  # Count the number of classes in Y_train
+                  length(levels.dframe(Y_train)$Levels[[1]])
+                }
+      if (trace) {
+        message(paste0("Counted ", nClass,  " classes in Y_train"))
+      }
+     
       # Distributed sampling
-      if (samplingFlag == TRUE) {
+      if (samplingFlag) {
         nTrain   <- nrow(X_train)
         nFeature <- ncol(X_train)
          
@@ -269,7 +272,7 @@ hpdegbm <- function(
         # Perform distributed sampling. The outputs contain as many models as
         # executors to be built
         sampledXY <- hpdsample(X_train, Y_train, nSamplePartitions = nExecutor,
-                               samplingRatio = sampleRatio)
+                               samplingRatio = sampleRatio, trace = trace)
         if (trace) {
           samplingTime <- (proc.time() - samplingStart)["elapsed"]
           message(paste0("Distributed sampling complete, took ", 
@@ -304,17 +307,17 @@ hpdegbm <- function(
 
         pclasses <- getpartition(dpartClasses)
 
-        if (!all(sapply(pclasses, function(cs) all(cs == pclasses[[1]])))) {
+        if (!all(sapply(pclasses, function(cs) all(length(cs) == nClass)))) {
           if (samplingFlag) 
             stop("Bad sampling: Some partitions do not contain all classes. Please try again")
           else 
             stop("Some partitions do not contain all classes. Try using samplingFlag == TRUE")
         }
       }
+
       if (trace) {
         message("Building local models")
       }
- 
       # Build local model on each partition of sampled data
       foreach(i, 1:nExecutor, function(dGBM_modeli       = splits(dl_GBM_model,i), 
                                        best.iter         = splits(dbest.iter,i), 
@@ -326,10 +329,12 @@ hpdegbm <- function(
                                        n.minobsinnode    = n.minobsinnode,
                                        shrinkage         = shrinkage,
                                        bag.fraction      = bag.fraction,
-                                       buildLocalModel   = .buildLocalGbmModel) {
+                                       seeds             = seeds,
+                                       buildLocalModel   = .buildLocalGbmModel,
+                                       i = i) {
         buildLocalModel(dGBM_modeli, best.iter, x, y, n.trees, distribution,
                         interaction.depth, n.minobsinnode, shrinkage,
-                        bag.fraction)
+                        bag.fraction, seeds[i])
       }, progress = trace)
     }
 
@@ -373,8 +378,9 @@ print.hpdegbm <- function(x, ...) {
 # Helper function to build a gbm model on a partition
 .buildLocalGbmModel <- function(dGBM_modeli, best.iter, x, y, n.trees,
                                 distribution, interaction.depth,
-                                n.minobsinnode, shrinkage, bag.fraction) {
+                                n.minobsinnode, shrinkage, bag.fraction, seed) {
   library(gbm)
+  set.seed(seed)
 
   # gbm.fit requires that y be a vector
   if (is.data.frame(y))
