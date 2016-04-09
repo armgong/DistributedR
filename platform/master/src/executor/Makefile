@@ -4,7 +4,7 @@ R_CXXFLAGS = $(shell R CMD config --cppflags)  $(shell Rscript -e "Rcpp:::CxxFla
 #R_LDFLAGS =  $(shell R CMD config --ldflags)  $(shell Rscript -e "Rcpp:::LdFlags()") $(shell Rscript -e "RInside:::LdFlags()")
 R_LDFLAGS = -L$(shell Rscript -e "cat(R.home('home'), '/lib', sep='')") -lR -L$(shell Rscript -e "cat(system.file(package='RInside'),'/lib',sep='')") -Wl,-static -lRInside  -Wl,-Bdynamic -Wl,-rpath,$(shell Rscript -e "cat(system.file(package='RInside'),'/lib',sep='')")
 
-CXXFLAGS =-DBOOST_54 -fPIC -std=c++11 -g -O2 -fopenmp -finline-limit=10000 -DNDEBUG -I../third_party/install/include   -I./ -I../common/ -I../messaging/gen-cpp -DSTRICT_R_HEADERS -I../third_party/boost_1_59_0/ -I..
+CXXFLAGS =-DBOOST_54 -fPIC -std=c++11 -g -O2 -fopenmp -finline-limit=10000 -DNDEBUG -I../third_party/install/include   -I./ -I../common/ -I../messaging/gen-cpp -DSTRICT_R_HEADERS -I../third_party/boost_1_60_0/ -I..
 
 LDFLAGS = -L../third_party/install/lib -lpthread -lboost_thread -lboost_system -lboost_log -lboost_log_setup -lboost_chrono -lboost_filesystem -lboost_date_time -latomicio -lR-common -lzmq -luuid -lrt -lsodium
 
